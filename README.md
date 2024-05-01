@@ -1,7 +1,7 @@
-# flexiv_bin_packing
+# Flexiv Bin Packing
 This repo is the source code to a bin packing software the author is working on. 
 
-The projec is a colloboration project between Flexiv and NUS MSc of Robotics ME5400A and ME5400B module.
+The project is a collaboration project between Flexiv and NUS MSc in Robotics ME5400A and ME5400B module.
 
 ## Usage
 ### Run the bin_packing.py
