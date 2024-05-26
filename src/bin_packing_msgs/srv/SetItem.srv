@@ -1,0 +1,4 @@
+bin_packing_msgs/Shape item
+---
+bool success
+string item_id

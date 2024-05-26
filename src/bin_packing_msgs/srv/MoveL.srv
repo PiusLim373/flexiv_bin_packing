@@ -1,0 +1,7 @@
+geometry_msgs/Pose quaternion_pose
+bin_packing_msgs/EulerPose euler_pose
+string mode
+string EULER=euler
+string QUATERNION=quaternion
+---
+bool success
