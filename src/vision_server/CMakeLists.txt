@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(bin_packing_msgs)
+project(vision_server)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -7,36 +7,33 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(bin_packing_msgs REQUIRED)
+find_package(PCL REQUIRED)
+find_package(pcl_conversions REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-set(msg_files
-  "msg/Shape.msg"
-  "msg/EulerPose.msg"
-)
+include_directories(${PCL_INCLUDE_DIRS} include)
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
 
-set(srv_files
-  "srv/GetAllAruco.srv"
-  "srv/GetArucoPose.srv"
-  "srv/GetPixelPoint.srv"
-  "srv/GetNextPose.srv"
-  "srv/SetBox.srv"
-  "srv/SetItem.srv"
-  "srv/MoveJ.srv"
-  "srv/MoveL.srv"
-  "srv/MoveRelative.srv"
-)
 
-rosidl_generate_interfaces(${PROJECT_NAME}
-  ${msg_files}
-  ${srv_files}
-  ${action_files}
-  DEPENDENCIES std_msgs geometry_msgs
-)
+add_executable(pcl_utils_node src/pcl_utils_node.cpp src/pcl_utils.cpp)
+ament_target_dependencies(pcl_utils_node rclcpp sensor_msgs bin_packing_msgs pcl_conversions PCL)
+target_include_directories(pcl_utils_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(pcl_utils_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+
+install(TARGETS pcl_utils_node
+  DESTINATION lib/${PROJECT_NAME})
+
+# Install Python scripts
+install(DIRECTORY scripts
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

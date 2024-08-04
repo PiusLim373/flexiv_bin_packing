@@ -3,7 +3,7 @@ import sys
 from ament_index_python import get_package_share_directory
 from bin_packing_msgs.srv import *
 from bin_packing_msgs.msg import *
-
+from std_srvs.srv import Trigger
 package_share_directory = get_package_share_directory("motion_server")
 sys.path.insert(0, package_share_directory)
 import flexivrdk
@@ -12,6 +12,8 @@ import rclpy
 from rclpy.node import Node
 import time
 from scipy.spatial.transform import Rotation as R
+import tf2_ros
+from geometry_msgs.msg import TransformStamped
 
 
 class MotionServer(Node):
@@ -21,13 +23,17 @@ class MotionServer(Node):
         self.log = flexivrdk.Log()
         self.mode = flexivrdk.Mode
         self.plan_info = flexivrdk.PlanInfo()
-        self.robot = flexivrdk.Robot("192.168.86.121", "192.168.86.120")
+        self.robot_states = flexivrdk.RobotStates()
+        self.robot = flexivrdk.Robot("192.168.3.100", "192.168.3.101")    #robot ip, local ip
         self.enable_robot()
 
+        self.br = tf2_ros.TransformBroadcaster(self)
         self.srv = self.create_service(MoveJ, "move_j", self.move_j_cb)
         self.srv = self.create_service(MoveL, "move_l", self.move_l_cb)
-        self.srv = self.create_service(MoveRelative, "move_relative", self.move_relative_cb)
-
+        self.srv = self.create_service(Trigger, "home", self.home_cb)
+        self.create_timer(0.01, self.timer_callback)
+        # self.srv = self.create_service(MoveRelative, "move_relative", self.move_relative_cb)
+    
     # Robot internal functions
     def enable_robot(self):
         self.robot.setMode(self.mode.NRT_PRIMITIVE_EXECUTION)
@@ -102,6 +108,24 @@ class MotionServer(Node):
 
         return eulerZYX
 
+    # timer callback
+    def timer_callback(self):
+        self.robot.getRobotStates(self.robot_states)
+        tcp_pose = self.robot_states.tcpPose
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = 'world'
+        t.child_frame_id = 'tcp'
+        t.transform.translation.x = tcp_pose[0]
+        t.transform.translation.y = tcp_pose[1]
+        t.transform.translation.z = tcp_pose[2]
+        t.transform.rotation.w = tcp_pose[3]
+        t.transform.rotation.x = tcp_pose[4]
+        t.transform.rotation.y = tcp_pose[5]
+        t.transform.rotation.z = tcp_pose[6]
+        # Broadcast the transform
+        self.br.sendTransform(t)
+        
     # service callbacks
     def move_j_cb(self, request, response):
         joint_list = " ".join(map(str, request.joints))
@@ -123,22 +147,22 @@ class MotionServer(Node):
         return response
 
     def move_l_cb(self, request, response):
-        self.get_logger().info(f"Incoming Move L request: {request.pose}")
+        self.get_logger().info(f"Incoming Move L request: {request.euler_pose}")
 
         # robot.executePrimitive("MoveL(target=0.65 -0.3 0.2 180 0 180 WORLD WORLD_ORIGIN, maxVel=0.2")
-        if request.mode == MoveL().Request.QUATERNION:
+        if request.mode == MoveL.Request.QUATERNION:
             quaternion_list = [
-                request.quaternion_pose.quaternion.w,
-                request.quaternion_pose.quaternion.x,
-                request.quaternion_pose.quaternion.y,
-                request.quaternion_pose.quaternion.z,
+                request.quaternion_pose.orientation.w,
+                request.quaternion_pose.orientation.x,
+                request.quaternion_pose.orientation.y,
+                request.quaternion_pose.orientation.z,
             ]
             eulerZYX_deg = self.quat2eulerZYX(quaternion_list, degree=True)
             self.robot.executePrimitive(
                 f"MoveL(target={request.quaternion_pose.position.x} {request.quaternion_pose.position.y} {request.quaternion_pose.position.z} {eulerZYX_deg[0]} {eulerZYX_deg[1]} {eulerZYX_deg[2]} WORLD WORLD_ORIGIN, maxVel=0.2)"
             )
 
-        elif request.mode == MoveL().Request.EULER:
+        elif request.mode == MoveL.Request.EULER:
             self.robot.executePrimitive(
                 f"MoveL(target={request.euler_pose.position.x} {request.euler_pose.position.y} {request.euler_pose.position.z} {request.euler_pose.orientation.x} {request.euler_pose.orientation.y} {request.euler_pose.orientation.z} WORLD WORLD_ORIGIN, maxVel=0.2)"
             )
@@ -152,6 +176,20 @@ class MotionServer(Node):
         response.success = True
         return response
 
+    def home_cb(self, request, response):
+        self.get_logger().info(f"Incoming homing request")
+        
+        # robot.executePrimitive("MoveJ(target=30 -45 0 90 0 40 30)")
+        self.robot.executePrimitive("Home()")
+
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(1)
+        response.success = True
+        return response
 
 def main(args=None):
     rclpy.init(args=args)
@@ -162,3 +200,6 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
+
+
+#ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.7, "y": -0.1, "z": 0.3}, "orientation": {"x": 180, "y": 0, "z": 180}}}'

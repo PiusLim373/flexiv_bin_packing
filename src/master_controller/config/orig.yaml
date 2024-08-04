@@ -1,0 +1,33 @@
+master_controller:
+  ros__parameters:
+    dummy: "dummy"
+    box:
+      length: 0.2
+      height: 0.2
+      width: 0.2
+    available_items:
+      - id: 12
+        dimensions:
+          length: 0.1
+          width: 0.1
+          height: 0.1
+      - id: 13
+        dimensions:
+          length: 0.1
+          width: 0.1
+          height: 0.1
+      - id: 14
+        dimensions:
+          length: 0.1
+          width: 0.1
+          height: 0.1
+      - id: 15
+        dimensions:
+          length: 0.1
+          width: 0.1
+          height: 0.1
+      - id: 16
+        dimensions:
+          length: 0.1
+          width: 0.1
+          height: 0.1

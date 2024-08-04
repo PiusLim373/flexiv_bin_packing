@@ -1,3 +1,4 @@
 bin_packing_msgs/Shape box
+geometry_msgs/Pose pose
 ---
 bool success

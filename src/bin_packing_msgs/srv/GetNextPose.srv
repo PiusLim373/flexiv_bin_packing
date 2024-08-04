@@ -1,5 +1,9 @@
 ---
-bool success
+int16 output
 string item_id
 string rotation_config
 geometry_msgs/Pose placing_pose
+
+int16 ERROR=0
+int16 SUCCESS=1
+int16 COMPLETED=2

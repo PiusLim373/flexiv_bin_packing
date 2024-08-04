@@ -1,0 +1,5 @@
+master_controller:
+  ros__parameters:
+    box_config_string: "{'name': '30cm box', 'dimension': {'length': 0.3, 'width': 0.3, 'height': 0.3}, 'pose':{'position': {'x': 0.1, 'y': -0.3, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}}}"
+    # item_database_string: "{'0': {'dimension': {'length': 0.187, 'width': 0.21, 'height': 0.067}, 'color': 'blue'},'1': {'dimension': {'length': 0.16, 'width': 0.1, 'height': 0.07}},'2': {'dimension': {'length': 0.192, 'width': 0.145, 'height': 0.05}, 'color': 'black'},'3': {'dimension': {'length': 0.153, 'width': 0.163, 'height': 0.135}, 'color': 'red'}}"
+    item_database_string: "{'20': {'dimension': {'length': 0.187, 'width': 0.21, 'height': 0.067}, 'color': 'blue'},'21': {'dimension': {'length': 0.16, 'width': 0.1, 'height': 0.07}, 'color': 'yellow'},'22': {'dimension': {'length': 0.192, 'width': 0.145, 'height': 0.05}, 'color': 'black'},'23': {'dimension': {'length': 0.153, 'width': 0.163, 'height': 0.135}, 'color': 'red'}}"
