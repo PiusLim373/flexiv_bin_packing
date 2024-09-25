@@ -22,8 +22,9 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([rs2_launch_file_dir, "/rs_launch.py"]),
         launch_arguments={
             "pointcloud.enable": "true",
-            "depth_module.profile": "1280x720x30",
-            "rgb_camera.profile": "1280x720x30",
+            "depth_module.depth_profile": "1280x720x30",
+            "depth_module.infra_profile": "1280x720x30",
+            "rgb_camera.color_profile": "1280x720x30",
             "pointcloud.ordered_pc": "true",
             "align_depth.enable": "true",
         }.items(),
@@ -35,7 +36,48 @@ def generate_launch_description():
         parameters=[master_controller_config_file],
     )
 
-    return LaunchDescription([
-        camera_node,
-        # master_controller_node
-        ])
+    vision_node = Node(
+        package="vision_server",
+        executable="charuco_reader.py",
+        name="aruco_reader_node",
+    )
+
+    motion_server_node = Node(
+        package="motion_server",
+        executable="motion_server_node",
+        name="motion_server_node",
+    )
+
+    world_tcp_node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        output="screen",
+        parameters=[],
+        arguments=["0.4", "0", "0.37", "3.14", "0", "3.14", "world", "tcp"],
+    )
+
+    tcp_camera_node = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        output="screen",
+        arguments=["-0.06", "0", "-0.1", "0", "-1.57", "0", "tcp", "camera_link"],
+    )
+    
+    camera_tf_handler_node = Node(
+        package="vision_server",
+        executable="camera_tf_handler.py",
+        output="screen",
+        arguments=[],
+    )
+
+    return LaunchDescription(
+        [
+            vision_node,
+            camera_node,
+            motion_server_node,
+            # camera_tf_handler_node,
+            # world_tcp_node,
+            # tcp_camera_node,
+            # master_controller_node
+        ]
+    )

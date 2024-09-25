@@ -1,0 +1,6 @@
+---
+int16 outcome
+
+int16 ERROR=0
+int16 BOX=1
+int16 FLIPPING_MECHANISM=2

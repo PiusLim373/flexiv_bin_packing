@@ -23,7 +23,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'master_controller_node = master_controller.master_controller_node:main'
+            'master_controller_node = master_controller.master_controller_node:main',
+            'stepwise_master_controller_node = master_controller.stepwise_master_controller_node:main',
+            'stepwise_master_controller_charuco_node = master_controller.stepwise_master_controller_charuco_node:main',
+            'stepwise_master_controller_pcl_node = master_controller.stepwise_master_controller_pcl_node:main',
         ],
     },
 )

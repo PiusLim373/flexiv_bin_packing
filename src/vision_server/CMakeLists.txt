@@ -12,11 +12,13 @@ find_package(sensor_msgs REQUIRED)
 find_package(bin_packing_msgs REQUIRED)
 find_package(PCL REQUIRED)
 find_package(pcl_conversions REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-include_directories(${PCL_INCLUDE_DIRS} include)
+include_directories(${PCL_INCLUDE_DIRS} include ${tf2_INCLUDE_DIRS} ${tf2_ros_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
@@ -27,14 +29,40 @@ target_include_directories(pcl_utils_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 target_compile_features(pcl_utils_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
-
 install(TARGETS pcl_utils_node
-  DESTINATION lib/${PROJECT_NAME})
+DESTINATION lib/${PROJECT_NAME})
 
+add_executable(box_finder_node src/box_finder_node.cpp src/box_finder.cpp)
+ament_target_dependencies(box_finder_node rclcpp sensor_msgs bin_packing_msgs pcl_conversions PCL tf2 tf2_ros)
+target_link_libraries(box_finder_node
+  ${PCL_LIBRARIES}
+)
+include_directories(${PCL_INCLUDE_DIRS})
+target_include_directories(box_finder_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(box_finder_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+install(TARGETS box_finder_node
+DESTINATION lib/${PROJECT_NAME})
 # Install Python scripts
-install(DIRECTORY scripts
-  DESTINATION lib/${PROJECT_NAME})
+# install(DIRECTORY scripts
+#   DESTINATION lib/${PROJECT_NAME})
+file(GLOB SCRIPT_FILES scripts/*.py )
 
+install(PROGRAMS
+  ${SCRIPT_FILES}
+  DESTINATION lib/${PROJECT_NAME} 
+)
+
+# Install configuration files
+install(DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
+)
+
+# Install launch files
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights

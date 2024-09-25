@@ -17,11 +17,16 @@ find_package(geometry_msgs REQUIRED)
 set(msg_files
   "msg/Shape.msg"
   "msg/EulerPose.msg"
+  "msg/BoxDetail.msg"
 )
 
 set(srv_files
   "srv/GetAllAruco.srv"
+  "srv/GetAllBoxDetail.srv"
+  "srv/GetFMBoxDetail.srv"
+  "srv/GetAllChArUco.srv"
   "srv/GetArucoPose.srv"
+  "srv/GetChArUcoPose.srv"
   "srv/GetPixelPoint.srv"
   "srv/GetNextPose.srv"
   "srv/SetBox.srv"
@@ -29,6 +34,7 @@ set(srv_files
   "srv/MoveJ.srv"
   "srv/MoveL.srv"
   "srv/MoveRelative.srv"
+  "srv/TransferItem.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

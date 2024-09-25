@@ -1,0 +1,4 @@
+int16 charuco_id
+---
+bool success
+geometry_msgs/Pose pose

@@ -2,6 +2,7 @@
 int16 output
 string item_id
 string rotation_config
+bin_packing_msgs/Shape shape
 geometry_msgs/Pose placing_pose
 
 int16 ERROR=0

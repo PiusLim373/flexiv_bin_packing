@@ -3,7 +3,8 @@ import sys
 from ament_index_python import get_package_share_directory
 from bin_packing_msgs.srv import *
 from bin_packing_msgs.msg import *
-from std_srvs.srv import Trigger
+from std_srvs.srv import Trigger, SetBool
+
 package_share_directory = get_package_share_directory("motion_server")
 sys.path.insert(0, package_share_directory)
 import flexivrdk
@@ -15,25 +16,35 @@ from scipy.spatial.transform import Rotation as R
 import tf2_ros
 from geometry_msgs.msg import TransformStamped
 
+MOCK_ROBOT = False
+
 
 class MotionServer(Node):
 
     def __init__(self):
         super().__init__("motion_server")
-        self.log = flexivrdk.Log()
-        self.mode = flexivrdk.Mode
-        self.plan_info = flexivrdk.PlanInfo()
-        self.robot_states = flexivrdk.RobotStates()
-        self.robot = flexivrdk.Robot("192.168.3.100", "192.168.3.101")    #robot ip, local ip
-        self.enable_robot()
+        if not MOCK_ROBOT:
+            self.log = flexivrdk.Log()
+            self.mode = flexivrdk.Mode
+            self.plan_info = flexivrdk.PlanInfo()
+            self.robot_states = flexivrdk.RobotStates()
+            self.robot = flexivrdk.Robot("192.168.3.100", "192.168.3.101")  # robot ip, local ip
+            self.enable_robot()
 
         self.br = tf2_ros.TransformBroadcaster(self)
         self.srv = self.create_service(MoveJ, "move_j", self.move_j_cb)
         self.srv = self.create_service(MoveL, "move_l", self.move_l_cb)
         self.srv = self.create_service(Trigger, "home", self.home_cb)
-        self.create_timer(0.01, self.timer_callback)
-        # self.srv = self.create_service(MoveRelative, "move_relative", self.move_relative_cb)
-    
+        self.srv = self.create_service(Trigger, "fm_home", self.fm_home_cb)
+        self.srv = self.create_service(MoveRelative, "move_relative", self.move_relative_cb)
+        self.srv = self.create_service(Trigger, "contact", self.contact_cb)
+        self.srv = self.create_service(SetBool, "gripper_control", self.gripper_control_cb)
+        if not MOCK_ROBOT:
+            self.robot.executePrimitive("ZeroFTSensor()")
+            time.sleep(0.5)
+            self.robot.executePrimitive("MoveJ(target=-1.05 -13.19 2.11 85.09 -0.52 8.1 1.3)")
+            self.create_timer(0.01, self.timer_callback)
+
     # Robot internal functions
     def enable_robot(self):
         self.robot.setMode(self.mode.NRT_PRIMITIVE_EXECUTION)
@@ -114,8 +125,8 @@ class MotionServer(Node):
         tcp_pose = self.robot_states.tcpPose
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = 'world'
-        t.child_frame_id = 'tcp'
+        t.header.frame_id = "world"
+        t.child_frame_id = "tcp"
         t.transform.translation.x = tcp_pose[0]
         t.transform.translation.y = tcp_pose[1]
         t.transform.translation.z = tcp_pose[2]
@@ -123,13 +134,30 @@ class MotionServer(Node):
         t.transform.rotation.x = tcp_pose[4]
         t.transform.rotation.y = tcp_pose[5]
         t.transform.rotation.z = tcp_pose[6]
-        # Broadcast the transform
         self.br.sendTransform(t)
-        
+
+        flange_pose = self.robot_states.flangePose
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = "world"
+        t.child_frame_id = "flange"
+        t.transform.translation.x = flange_pose[0]
+        t.transform.translation.y = flange_pose[1]
+        t.transform.translation.z = flange_pose[2]
+        t.transform.rotation.w = flange_pose[3]
+        t.transform.rotation.x = flange_pose[4]
+        t.transform.rotation.y = flange_pose[5]
+        t.transform.rotation.z = flange_pose[6]
+        self.br.sendTransform(t)
+
     # service callbacks
     def move_j_cb(self, request, response):
         joint_list = " ".join(map(str, request.joints))
         self.get_logger().info(f"Incoming Move J request: {request.joints}")
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
         if len(request.joints) != 7:
             self.get_logger().error(f"Move J must consists of 7 value")
             response.success = False
@@ -148,7 +176,10 @@ class MotionServer(Node):
 
     def move_l_cb(self, request, response):
         self.get_logger().info(f"Incoming Move L request: {request.euler_pose}")
-
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
         # robot.executePrimitive("MoveL(target=0.65 -0.3 0.2 180 0 180 WORLD WORLD_ORIGIN, maxVel=0.2")
         if request.mode == MoveL.Request.QUATERNION:
             quaternion_list = [
@@ -178,9 +209,14 @@ class MotionServer(Node):
 
     def home_cb(self, request, response):
         self.get_logger().info(f"Incoming homing request")
-        
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+
         # robot.executePrimitive("MoveJ(target=30 -45 0 90 0 40 30)")
-        self.robot.executePrimitive("Home()")
+        # self.robot.executePrimitive("Home()")
+        self.robot.executePrimitive("MoveJ(target=-1.05 -13.19 2.11 85.09 -0.52 8.1 1.3)")
 
         while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
             if self.robot.isFault():
@@ -190,6 +226,91 @@ class MotionServer(Node):
             time.sleep(1)
         response.success = True
         return response
+
+    def fm_home_cb(self, request, response):
+        self.get_logger().info(f"Incoming flipping mechanism homing request")
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+
+        self.robot.executePrimitive("MoveJ(target=16.86 0.05 44.38 100.2 0.39 10.14 61.41)")
+
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(1)
+        response.success = True
+        return response
+
+    def move_relative_cb(self, request, response):
+        self.get_logger().info(
+            f"Incoming move relative request, axis: {request.direction}, magnitude: {request.magnitude}"
+        )
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+        tcp_pose = self.robot_states.tcpPose
+        if request.direction == "x":
+            tcp_pose[0] += request.magnitude
+        elif request.direction == "y":
+            tcp_pose[1] += request.magnitude
+        elif request.direction == "z":
+            tcp_pose[2] += request.magnitude
+        quaternion_list = [
+            tcp_pose[3],
+            tcp_pose[4],
+            tcp_pose[5],
+            tcp_pose[6],
+        ]
+        eulerZYX_deg = self.quat2eulerZYX(quaternion_list, degree=True)
+        self.robot.executePrimitive(
+            f"MoveL(target={tcp_pose[0]} {tcp_pose[1]} {tcp_pose[2]} {eulerZYX_deg[0]} {eulerZYX_deg[1]} {eulerZYX_deg[2]} WORLD WORLD_ORIGIN, maxVel=0.2)"
+        )
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(1)
+        response.success = True
+        return response
+
+    def contact_cb(self, request, response):
+        self.get_logger().info(f"Incoming contact request")
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+        self.get_logger().info(f"Zeroing FT Sensor")
+
+        self.robot.executePrimitive("ZeroFTSensor()")
+        time.sleep(1.0)
+        self.get_logger().info(f"Contacting in progress")
+        self.robot.executePrimitive("Contact()")
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "primitiveName") == "Contact":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(0.5)
+        self.get_logger().info("Contact ended succesfully")
+        response.success = True
+        return response
+
+    def gripper_control_cb(self, request, response):
+        self.get_logger().info(f"Incoming gripper control request: {request.data}")
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+        self.robot.writeDigitalOutput([6], [request.data])
+        response.success = True
+        return response
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -202,4 +323,4 @@ if __name__ == "__main__":
     main()
 
 
-#ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.7, "y": -0.1, "z": 0.3}, "orientation": {"x": 180, "y": 0, "z": 180}}}'
+# ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.7, "y": -0.1, "z": 0.3}, "orientation": {"x": 180, "y": 0, "z": 180}}}'

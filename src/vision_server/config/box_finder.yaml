@@ -1,0 +1,10 @@
+box_finder_node:
+  ros__parameters:
+    max_pass_filter_fm: 0.35
+    voxel_grid_size_fm: 0.01
+    min_cluster_size_fm: 100
+
+    max_pass_filter: 0.7
+    voxel_grid_size: 0.01
+    plane_distance_threshold: 0.01
+    min_cluster_size: 150

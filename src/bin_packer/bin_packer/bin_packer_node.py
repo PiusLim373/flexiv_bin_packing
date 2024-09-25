@@ -4,13 +4,16 @@ from rclpy.node import Node
 from bin_packing_msgs.srv import *
 from bin_packing_msgs.msg import *
 from std_srvs.srv import *
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, TransformStamped
 import random
 import threading
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 from mpl_toolkits.mplot3d import Axes3D
+from visualization_msgs.msg import Marker
+import random
+import tf2_ros
 
 NUMBER_OF_DECIMAL = 3
 ROTATION = ["LWH", "WLH"]
@@ -290,6 +293,10 @@ class Packer:
             self.ax.set_ylabel("Y")
             self.ax.set_zlabel("Z")
             self.ax.set_title(self.box.name)
+            max_side = max(self.box.length, self.box.width, self.box.height)
+            self.ax.set_xlim([0, max_side])
+            self.ax.set_ylim([0, max_side])
+            self.ax.set_zlim([0, max_side])
             packing_detail_text = f"Successfully packed {len(self.box.items_in_box)} / {len(self.item_to_pack)} items"
             if self.packing_detail_text_component == None:
                 self.packing_detail_text_component = self.fig.text(
@@ -472,12 +479,88 @@ class BinPacker(Node):
     def __init__(self):
         super().__init__("bin_packer")
         self.packer = Packer()
+        self.all_marker_added = []
+
+        # transforms related
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.br = tf2_ros.TransformBroadcaster(self)
+
         self.create_service(SetBox, "set_box", self.set_box_cb)
         self.create_service(SetItem, "set_item", self.set_item_cb)
         self.create_service(Trigger, "pack", self.request_to_pack_cb)
         self.create_service(GetNextPose, "get_next_placing_pose", self.get_next_coor_cb)
         self.create_service(Trigger, "reset", self.reset_cb)
+        self.rviz_visualizer = self.create_publisher(Marker, "rviz_visualizer", 10)
+
+        self.create_timer(1.0, self.timer_callback)
+
+    def timer_callback(self):
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = "world"
+        t.child_frame_id = "box"
+        t.transform.translation.x = 0.25
+        t.transform.translation.y = -0.4
+        t.transform.rotation.w = 1.0
+        self.br.sendTransform(t)
         # self.srv = self.create_service(StringTrigger, "delete_item", self.delete_item_cb)
+
+    def publish_marker(self, name, pose, length, width, height, rgba, offset=False):
+        marker = Marker()
+        marker.header.frame_id = "world"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "cube"
+        marker.id = random.randint(0, 1000)
+        self.all_marker_added.append(marker.id)
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+
+        # Set the pose
+        marker.pose.position.x = pose.position.x
+        marker.pose.position.y = pose.position.y
+        marker.pose.position.z = pose.position.z
+        if offset:
+            marker.pose.position.x += 0.5 * length
+            marker.pose.position.y += 0.5 * width
+            marker.pose.position.z += 0.5 * height
+        else:
+            marker.pose.position.z -= 0.5 * height
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+
+        # Set the dimensions of the box
+        marker.scale.x = length
+        marker.scale.y = width
+        marker.scale.z = height
+
+        # Set the color (RGBA)
+        marker.color.r = rgba[0]
+        marker.color.g = rgba[1]
+        marker.color.b = rgba[2]
+        marker.color.a = rgba[3]
+
+        # Optional: Set the lifetime (set to 0 for infinite lifetime)
+        marker.lifetime = rclpy.duration.Duration(seconds=0).to_msg()  # Infinite lifetime
+
+        # Publish the marker
+        self.rviz_visualizer.publish(marker)
+        self.get_logger().info("Box marker published.")
+
+    def remove_all_markers(self):
+        for id in self.all_marker_added:
+            marker = Marker()
+            marker.header.frame_id = "world"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "cube"
+            marker.id = id
+            marker.type = Marker.CUBE
+            marker.action = Marker.DELETE  # Action to delete the marker
+            self.rviz_visualizer.publish(marker)
+            self.get_logger().info(f"Item with id: {id} cleared.")
+        self.get_logger().info(f"All items cleared")
 
     def set_box_cb(self, req, res):
         self.get_logger().info(f"Set Box service called")
@@ -486,6 +569,9 @@ class BinPacker(Node):
                 self.get_logger().warn("Box has been set previously, will overwrite with new Box config")
                 self.packer.received_pack_request = False
             self.packer.box = Box(req.box.length, req.box.width, req.box.height, req.pose, req.box.name)
+            self.publish_marker(
+                "box", req.pose, req.box.length, req.box.width, req.box.height, (1.0, 0.0, 0.0, 0.4), offset=True
+            )
             res.success = True
             return res
 
@@ -542,13 +628,16 @@ class BinPacker(Node):
             res.output = GetNextPose.Response.COMPLETED
             return res
         item = self.packer.box.items_in_box[self.packer.get_next_coor_index]
-        print(f'return item {item.item_id}')
+        print(f"return item {item.item_id}")
         if not item.successfully_boxed:
             self.get_logger().warn(f"Item is not boxed, something is wrong, please retry the packing")
             res.success = False
             return res
         res.item_id = item.item_id
         res.rotation_config = item.rotation_type
+        res.shape.length = item.length
+        res.shape.width = item.width
+        res.shape.height = item.height
         box_pose = self.packer.box.pose
         (x, y, z) = item.coor
         (dim_x, dim_y, dim_z) = item.get_rotated_dimension()
@@ -561,6 +650,8 @@ class BinPacker(Node):
         res.output = GetNextPose.Response.SUCCESS
 
         self.packer.get_next_coor_index += 1
+        self.publish_marker("item", res.placing_pose, dim_x, dim_y, dim_z, (0.0, 1.0, 0.0, 0.7))
+
         return res
 
     def reset_cb(self, req, res):
@@ -573,6 +664,8 @@ class BinPacker(Node):
         self.packer.counter_by_step = -1
         self.packer.received_pack_request = False
         self.packer.get_next_coor_index = 0
+        self.remove_all_markers()
+        self.all_marker_added = []
         res.success = True
         return res
 
@@ -586,10 +679,10 @@ def main(args=None):
     bin_packer = BinPacker()
     executor = rclpy.executors.MultiThreadedExecutor()
     executor.add_node(bin_packer)
+    thread = threading.Thread(target=executor.spin, daemon=True)
+    thread.start()
+    bin_packer.start_plt()
     executor.spin()
-    # thread = threading.Thread(target=executor.spin, daemon=True)
-    # thread.start()
-    # bin_packer.start_plt()
 
 
 if __name__ == "__main__":
