@@ -1,0 +1,6 @@
+---
+int32 outcome
+
+int32 ERROR=0
+int32 SUCCESS=1
+int32 COMPLETED=2

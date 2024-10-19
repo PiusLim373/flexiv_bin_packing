@@ -28,13 +28,19 @@ set(srv_files
   "srv/GetArucoPose.srv"
   "srv/GetChArUcoPose.srv"
   "srv/GetPixelPoint.srv"
+  "srv/GetNextCoordinate.srv"
   "srv/GetNextPose.srv"
   "srv/SetBox.srv"
   "srv/SetItem.srv"
   "srv/MoveJ.srv"
   "srv/MoveL.srv"
   "srv/MoveRelative.srv"
+  "srv/StringTrigger.srv"
   "srv/TransferItem.srv"
+)
+
+set(action_files
+  "action/Trigger.action"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

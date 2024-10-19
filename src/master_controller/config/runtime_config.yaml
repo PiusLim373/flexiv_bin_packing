@@ -1,10 +1,7 @@
 master_controller:
   ros__parameters:
-    # box_config_string: "{'name': '30cm box', 'dimension': {'length': 0.15, 'width': 0.1, 'height': 0.2}, 'pose':{'position': {'x': 0.25, 'y': -0.4, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"
-    # item_database_string: "{'0': {'dimension': {'length': 0.187, 'width': 0.21, 'height': 0.067}, 'color': 'blue'},'1': {'dimension': {'length': 0.16, 'width': 0.1, 'height': 0.07}},'2': {'dimension': {'length': 0.192, 'width': 0.145, 'height': 0.05}, 'color': 'black'},'3': {'dimension': {'length': 0.153, 'width': 0.163, 'height': 0.135}, 'color': 'red'}}"
-    item_database_string: "{'0': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'yellow'},'1': {'dimension': {'length': 0.157, 'width': 0.0863, 'height': 0.042}, 'color': 'blue'}, '2': {'dimension': {'length': 0.087, 'width': 0.097, 'height': 0.042}, 'color': 'black'}}"
+    box_config_string: "{'name': '20cm Box', 'dimension': {'length': 0.2, 'width': 0.2, 'height': 0.2}, 'pose':{'position': {'x': 0.25, 'y': -0.4, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"
+    # item_database_string: "{'0': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'yellow'},'1': {'dimension': {'length': 0.157, 'width': 0.0863, 'height': 0.042}, 'color': 'blue'}, '2': {'dimension': {'length': 0.195, 'width': 0.1, 'height': 0.055}, 'color': 'black'}}"
+    item_database_string: "{'0': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'yellow'}, '1': {'dimension': {'length': 0.157, 'width': 0.0863, 'height': 0.042}, 'color': 'blue'}, '2': {'dimension': {'length': 0.195, 'width': 0.1, 'height': 0.055}, 'color': 'black'}, '3': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'red'}, '4': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.09}, 'color': 'green'}, '5': {'dimension': {'length': 0.155, 'width': 0.105, 'height': 0.06}, 'color': 'orange'}, '6': {'dimension': {'length': 0.175, 'width': 0.150, 'height': 0.075}, 'color': 'purple'}}"
     flipping_mechanism_pose_string: "{'position': {'x': 0.3, 'y': 0.365, 'z': 0.08}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}"
     flipping_mechanism_endpoint: "http://192.168.79.173/flip"
-    # test HWL and FM
-    # box_config_string: "{'name': 'Box', 'dimension': {'length': 0.14, 'width': 0.16, 'height': 0.2}, 'pose':{'position': {'x': 0.25, 'y': -0.4, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"
-    box_config_string: "{'name': 'Box', 'dimension': {'length': 0.16, 'width': 0.14, 'height': 0.2}, 'pose':{'position': {'x': 0.25, 'y': -0.4, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"

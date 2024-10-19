@@ -60,15 +60,16 @@ public:
     };
 
 private:
-    double max_pass_filter, voxel_grid_size, plane_distance_threshold;
-    int min_cluster_size;
-    
+    double max_pass_filter_global, voxel_grid_size_global, plane_distance_threshold_global;
+    int min_cluster_size_global;
+    int averaging_tries, min_averaging_tries;
+
     double max_pass_filter_fm, voxel_grid_size_fm;
     int min_cluster_size_fm;
     pcl::PointCloud<pcl::PointXYZ> camera_pcl;
     rclcpp::Service<bin_packing_msgs::srv::GetAllBoxDetail>::SharedPtr get_all_box_detail_srv;
     rclcpp::Service<bin_packing_msgs::srv::GetFMBoxDetail>::SharedPtr get_fm_box_detail_srv;
-    
+
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr processed_pointcloud_pub;
     void getAllBoxDetailServiceCB(const std::shared_ptr<bin_packing_msgs::srv::GetAllBoxDetail::Request> request,
@@ -79,6 +80,5 @@ private:
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud;
     void publishProcessedPointcloud(std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> data);
-
-    // pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    std::vector<pcl::PointIndices> get_clusters(double max_pass_filter, double voxel_grid_size, double plane_distance_threshold, int min_cluster_size, bool enable_plane_segmentation, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_without_plane);
 };

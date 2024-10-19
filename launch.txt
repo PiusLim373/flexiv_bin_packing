@@ -14,11 +14,13 @@ ros2 run tf2_ros static_transform_publisher -0.06 0 -0.1 0 -1.57 0 tcp camera_li
 ros2 run tf2_ros static_transform_publisher 0.4 0 0.37 3.14 0 3.14 world tcp 
 ros2 run tf2_ros static_transform_publisher 0.4 0 0.93 3.14 0 3.14 world flange 
 ros2 run master_controller stepwise_master_controller_charuco_node --ros-args --params-file /home/sesto/all_ws/master/flexiv_bin_packing/src/master_controller/config/runtime_config.yaml
+ros2 run master_controller stepwise_master_controller_pcl_node --ros-args --params-file /home/sesto/all_ws/master/flexiv_bin_packing/src/master_controller/config/runtime_config.yaml
 
 # desired home pos
-ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.6, "y": -0.1, "z": 0.4}, "orientation": {"x": 180, "y": 0, "z": 180}}}'
+ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.6, "y": -0.1, "z": 0.5}, "orientation": {"x": 180, "y": 0, "z": 180}}}'
 
 # box origin
+ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.25, "y": -0.4, "z": 0.4}, "orientation": {"x": 180, "y": 0, "z": 180}}}'
 ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.25, "y": -0.4, "z": 0.01}, "orientation": {"x": 180, "y": 0, "z": 180}}}
 # flipping mechasnim origin
 ros2 service call /move_l bin_packing_msgs/srv/MoveL '{"mode": "euler", "euler_pose": {"position": {"x": 0.3, "y": 0.365, "z": 0.08}, "orientation": {"x": 180, "y": 0, "z": 180}}}'
@@ -31,21 +33,35 @@ ros2 service call /get_next_coordinate std_srvs/srv/Trigger {} && \
 ros2 service call /transfer_item bin_packing_msgs/srv/TransferItem {} 
 ros2 service call /transfer_from_flipping_mechanism std_srvs/srv/Trigger {}
 
-
 ros2 service call /clear_halfway_item std_srvs/srv/Trigger {}
 
+
+# for pcl master master_controller
+ros2 service call /get_all_item_and_pack std_srvs/srv/Trigger {} && \
+ros2 service call /get_next_coordinate bin_packing_msgs/srv/GetNextCoordinate {} && \
+ros2 service call /transfer_item bin_packing_msgs/srv/TransferItem {} 
+ros2 service call /transfer_from_flipping_mechanism std_srvs/srv/Trigger {}
+ros2 service call /reset_bin_packer std_srvs/srv/Trigger {}
 
 
 ==== todo list
 1. make robot arm homing coodinate customized via yaml loaded to motion vision_server
 2. capture some image of homing position
-4. place at FM
-5. pick from FM
-6. get some pointcloud.ply or pcd or the table with same boxes
-7. try out python pcl
 8. enable infra for realsense for better performance
 9. specify gripper io pin
-ok  10. handeye calibration
-ok  11. disable roll and pitch in charuco charuco_reader
-12. make marker bigger
 
+
+ros2 run master_controller test_bin_packer_fixed_item --ros-args --params-file /home/sesto/all_ws/master/flexiv_bin_packing/src/master_controller/config/runtime_config_fixed_item.yaml
+ros2 service call /get_all_item_and_pack std_srvs/srv/Trigger {} && \
+ros2 service call /get_next_placing_pose bin_packing_msgs/srv/GetNextPose {} && \
+ros2 service call /set_item_transferred bin_packing_msgs/srv/SetItem '{"item_id": "0"}'
+
+ros2 service call /get_next_placing_pose bin_packing_msgs/srv/GetNextPose {} && \
+ros2 service call /set_item_transferred bin_packing_msgs/srv/SetItem '{"item_id": "1"}'
+
+ros2 service call /get_next_placing_pose bin_packing_msgs/srv/GetNextPose {} && \
+ros2 service call /reset std_srvs/srv/Trigger {}
+
+ros2 service call /set_item bin_packing_msgs/srv/SetItem '{"item": {"length": 0.1, "width": 0.1, "height": 0.05, "name": "arcuo id 4", "color": "black" }, "item_id": "2"}'
+ros2 service call /pack std_srvs/srv/Trigger {} && \
+ros2 service call /get_next_placing_pose bin_packing_msgs/srv/GetNextPose {} && \

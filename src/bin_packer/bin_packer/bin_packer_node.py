@@ -14,6 +14,9 @@ from mpl_toolkits.mplot3d import Axes3D
 from visualization_msgs.msg import Marker
 import random
 import tf2_ros
+from icecream import ic
+
+ic.configureOutput(includeContext=True)
 
 NUMBER_OF_DECIMAL = 3
 ROTATION = ["LWH", "WLH"]
@@ -61,7 +64,7 @@ class Box:
             yield (x, y, round(current_z, NUMBER_OF_DECIMAL))
 
     def reset(self):
-        self.items_in_box = []
+        self.items_in_box = [item for item in self.items_in_box if item.successfully_transferred]
 
     # main packing function
     def put_item(self, item, consider_gravity):
@@ -148,6 +151,7 @@ class Item:
         self.rotation_type = "LWH"
         self.available_rotations = ROTATION
         self.successfully_boxed = False
+        self.successfully_transferred = False
         if colour:
             self.colour = colour
         else:
@@ -197,7 +201,10 @@ class Item:
         self.coor = coor
         print(f"[Item] item name {self.name} successfully boxed, at coor: {self.coor}")
 
-
+    def update_successful_transferred(self):
+        self.successfully_transferred = True
+        print(f"[Item] item name {self.name} successfully transferred")
+        
 class Packer:
     def __init__(self):
         # self.box = Box(20, 20, 20, "null")
@@ -317,18 +324,19 @@ class Packer:
             return
 
     # most outer layer of packing function, called by ui
-    def pack(self, consider_stability=True, consider_gravity=True, enable_3d_rotation=True):
+    def pack(self, consider_stability=False, consider_gravity=True, enable_3d_rotation=True):
         global ROTATION
         print(
             f"called pack consider_stability: {consider_stability}, consider_gravity:{consider_gravity}, enable_3d_rotation: {enable_3d_rotation}"
         )
         if enable_3d_rotation:
-            ROTATION = ["LWH", "WLH", "LHW", "WHL", "HWL", "HLW"]
+            ROTATION = ["LWH", "WLH", "WHL", "LHW", "HWL", "HLW"]
         else:
             ROTATION = ["LWH", "WLH"]
 
         # reset the box and items
         self.box.reset()
+        ic(self.item_to_pack)
         for item in self.item_to_pack:
             item.reset()
             item.print_item()
@@ -489,8 +497,10 @@ class BinPacker(Node):
         self.create_service(SetBox, "set_box", self.set_box_cb)
         self.create_service(SetItem, "set_item", self.set_item_cb)
         self.create_service(Trigger, "pack", self.request_to_pack_cb)
-        self.create_service(GetNextPose, "get_next_placing_pose", self.get_next_coor_cb)
+        self.create_service(StringTrigger, "set_item_transferred", self.set_item_transferred_cb)
+        self.create_service(GetNextPose, "get_next_placing_pose", self.get_next_placing_coor_cb)
         self.create_service(Trigger, "reset", self.reset_cb)
+        self.create_service(Trigger, "hard_reset", self.hard_reset_cb)
         self.rviz_visualizer = self.create_publisher(Marker, "rviz_visualizer", 10)
 
         self.create_timer(1.0, self.timer_callback)
@@ -549,6 +559,21 @@ class BinPacker(Node):
         self.rviz_visualizer.publish(marker)
         self.get_logger().info("Box marker published.")
 
+    def remove_last_marker(self):
+        if len(self.all_marker_added) == 0:
+            self.get_logger().info("No marker to remove")
+            return
+        id = self.all_marker_added.pop()
+        marker = Marker()
+        marker.header.frame_id = "world"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "cube"
+        marker.id = id
+        marker.type = Marker.CUBE
+        marker.action = Marker.DELETE
+        self.rviz_visualizer.publish(marker)
+        self.get_logger().info(f"Item with id: {id} cleared.")
+        
     def remove_all_markers(self):
         for id in self.all_marker_added:
             marker = Marker()
@@ -606,11 +631,28 @@ class BinPacker(Node):
             res.success = False
             return res
 
+    def set_item_transferred_cb(self, req, res):
+        self.get_logger().info(f"Set Item Packed service called")
+        try:
+            for item in self.packer.item_to_pack:
+                if item.item_id == req.data:
+                    item.update_successful_transferred()
+                    self.get_logger().info(f"Item with id {req.data} successfully set to transferred")
+                    res.success = True
+                    return res
+            self.get_logger().warn(f"Item with id {req.data} not found, unable to set transferred")
+            res.success = False
+            return res
+
+        except Exception as e:
+            self.get_logger().warn(f"Set Item Packed service has encountered a error: {e}")
+            res.success = False
+            return res
+    
     def request_to_pack_cb(self, req, res):
         try:
             self.packer.pack()
             self.packer.received_pack_request = True
-            self.packer.get_next_coor_index = 0
             res.success = True
             return res
         except Exception as e:
@@ -618,13 +660,15 @@ class BinPacker(Node):
             res.success = False
             return res
 
-    def get_next_coor_cb(self, req, res):
+    def get_next_placing_coor_cb(self, req, res):
         print("received req to send next coor")
         if not self.packer.received_pack_request:
             self.get_logger().warn(f"Please call the pack service first before continuing")
             res.output = GetNextPose.Response.ERROR
             return res
         if (self.packer.get_next_coor_index + 1) > len(self.packer.box.items_in_box):
+            print(f"item in box: {len(self.packer.box.items_in_box)}")
+            print("completed")
             res.output = GetNextPose.Response.COMPLETED
             return res
         item = self.packer.box.items_in_box[self.packer.get_next_coor_index]
@@ -656,6 +700,16 @@ class BinPacker(Node):
 
     def reset_cb(self, req, res):
         print("Request to reset the bin packer")
+        self.packer.item_to_pack = []
+        self.packer.packing_detail_text_component = None
+        self.packer.counter_by_step = -1
+        self.packer.get_next_coor_index -= 1
+        self.remove_last_marker()
+        res.success = True
+        return res
+
+    def hard_reset_cb(self, req, res):
+        print("Request to hard_reset the bin packer")
         self.packer.box = None
         self.packer.item_to_pack = []
         self.packer.packing_detail_text_component = None
@@ -668,7 +722,6 @@ class BinPacker(Node):
         self.all_marker_added = []
         res.success = True
         return res
-
     def start_plt(self):
         self.ani = anim.FuncAnimation(self.packer.fig, self.packer.test_plt, interval=1000)
         plt.show()

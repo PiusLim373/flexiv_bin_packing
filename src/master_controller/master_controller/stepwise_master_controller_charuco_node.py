@@ -22,6 +22,8 @@ import requests
 
 ic.configureOutput(includeContext=True)
 
+MOCK_ROBOT = False
+
 
 class MasterController(Node):
 
@@ -34,7 +36,7 @@ class MasterController(Node):
                 ("box_config_string", "{}"),
                 ("item_database_string", "{}"),
                 ("flipping_mechanism_pose_string", "{}"),
-                ("flipping_mechanism_endpoint", "")
+                ("flipping_mechanism_endpoint", ""),
             ],
         )
         box_config_string = self.get_parameter("box_config_string").get_parameter_value().string_value
@@ -42,8 +44,10 @@ class MasterController(Node):
         flipping_mechanism_pose_string = (
             self.get_parameter("flipping_mechanism_pose_string").get_parameter_value().string_value
         )
-        self.flipping_mechanism_endpoint = self.get_parameter("flipping_mechanism_endpoint").get_parameter_value().string_value
-        
+        self.flipping_mechanism_endpoint = (
+            self.get_parameter("flipping_mechanism_endpoint").get_parameter_value().string_value
+        )
+
         try:
             self.item_database = ast.literal_eval(item_database_string)
             self.box_config = ast.literal_eval(box_config_string)
@@ -77,10 +81,7 @@ class MasterController(Node):
         self.get_charuco_pose_srv = self.create_client(
             GetChArUcoPose, "get_charuco_pose", callback_group=MutuallyExclusiveCallbackGroup()
         )
-        self.get_all_box_detail_srv = self.create_client(
-            GetAllBoxDetail, "get_all_box_detail", callback_group=MutuallyExclusiveCallbackGroup()
-        )
-        self.get_fm_box_detail_srv = self.create_client(
+        self.get_fm_item_detail_srv = self.create_client(
             GetFMBoxDetail, "get_fm_box_detail", callback_group=MutuallyExclusiveCallbackGroup()
         )
         self.move_l_srv = self.create_client(MoveL, "move_l", callback_group=MutuallyExclusiveCallbackGroup())
@@ -88,34 +89,42 @@ class MasterController(Node):
             MoveRelative, "move_relative", callback_group=MutuallyExclusiveCallbackGroup()
         )
         self.contact_srv = self.create_client(Trigger, "contact", callback_group=MutuallyExclusiveCallbackGroup())
+        self.box_contact_srv = self.create_client(Trigger, "box_contact", callback_group=MutuallyExclusiveCallbackGroup())
         self.gripper_control_srv = self.create_client(
             SetBool, "gripper_control", callback_group=MutuallyExclusiveCallbackGroup()
         )
         self.home_robot_srv = self.create_client(Trigger, "home", callback_group=MutuallyExclusiveCallbackGroup())
         self.fm_home_robot_srv = self.create_client(Trigger, "fm_home", callback_group=MutuallyExclusiveCallbackGroup())
+        self.box_home_robot_srv = self.create_client(
+            Trigger, "box_home", callback_group=MutuallyExclusiveCallbackGroup()
+        )
         self.set_item_srv = self.create_client(SetItem, "set_item", callback_group=MutuallyExclusiveCallbackGroup())
         self.set_box_srv = self.create_client(SetBox, "set_box", callback_group=MutuallyExclusiveCallbackGroup())
         self.pack_srv = self.create_client(Trigger, "pack", callback_group=MutuallyExclusiveCallbackGroup())
+        self.hard_reset_srv = self.create_client(Trigger, "hard_reset", callback_group=MutuallyExclusiveCallbackGroup())
         self.reset_srv = self.create_client(Trigger, "reset", callback_group=MutuallyExclusiveCallbackGroup())
+        self.set_item_transferred_srv = self.create_client(
+            StringTrigger, "set_item_transferred", callback_group=MutuallyExclusiveCallbackGroup()
+        )
         self.get_next_placing_pose_srv = self.create_client(
             GetNextPose, "get_next_placing_pose", callback_group=MutuallyExclusiveCallbackGroup()
         )
 
         # services
         self.create_service(
-            Trigger, "get_all_marker", self.get_all_marker_cb
-        )  # a service that activate camera and get all available marker
+            Trigger, "get_all_item_and_pack", self.get_all_item_and_pack_cb
+        )  # a service that get all item and pack them
         self.create_service(
-            Trigger, "run_packing_algo", self.run_packing_algo_cb
-        )  # a service that run the packing algo based on detected marker
-        self.create_service(
-            Trigger, "get_next_coordinate", self.get_next_coordinate_cb
+            GetNextCoordinate, "get_next_coordinate", self.get_next_coordinate_cb
         )  # a service that populate data for item to be transder
         self.create_service(
             TransferItem, "transfer_item", self.transfer_item_cb
         )  # a service that pick the item based on rotational configuration set
         self.create_service(
             Trigger, "transfer_from_flipping_mechanism", self.transfer_from_flipping_mechanism_cb
+        )  # a service that transfer item from fm based on rotational configuration set
+        self.create_service(
+            Trigger, "reset_bin_packer", self.reset_bin_packer_cb
         )  # a service that transfer item from fm based on rotational configuration set
         self.create_service(
             Trigger, "clear_halfway_item", self.clear_halfway_item_cb
@@ -127,11 +136,11 @@ class MasterController(Node):
         self.br = tf2_ros.TransformBroadcaster(self)
 
         # main function to run below
-        self.reset_bin_packer()
+        self.hard_reset_bin_packer()
         self.setup_box()
 
         # for bypassing
-        '''
+        """
         self.all_charuco_markers = [0]
         placing_pose = Pose()
         placing_pose.position.x = 0.3225
@@ -161,7 +170,7 @@ class MasterController(Node):
             "offset_after_flip": False,
             "dimension": {'length': 0.145, 'width': 0.092, 'height': 0.05},
         }
-        '''
+        """
         self.get_logger().info("Stepwise master controller ready, please call services to continue")
 
     def pose_to_mat(self, pose):
@@ -181,9 +190,9 @@ class MasterController(Node):
         mat[:3, 3] = translation
         return mat
 
-    def reset_bin_packer(self):
+    def hard_reset_bin_packer(self):
         req = Trigger.Request()
-        future = self.reset_srv.call_async(req)
+        future = self.hard_reset_srv.call_async(req)
         rclpy.spin_until_future_complete(self, future, timeout_sec=2)
         reset_res = future.result()
         if reset_res is not None:
@@ -219,63 +228,51 @@ class MasterController(Node):
         else:
             raise Exception("set box rosservice future not returning")
 
-    def get_all_marker_cb(self, request, response):
-        self.get_logger().info("Got request to get all ar marker")
+    def get_all_item_and_pack_cb(self, request, response):
+        self.get_logger().info("Got request to get all ar marker and pack")
         get_all_charuco_req = GetAllChArUco.Request()
         get_all_charuco_res = self.get_all_charuco_srv.call(get_all_charuco_req)
-        if get_all_charuco_res is not None:
-            if get_all_charuco_res.success:
-                self.all_charuco_markers = get_all_charuco_res.charuco_markers
-                self.get_logger().info(
-                    f"All charuco detected: {self.all_charuco_markers}, run the service again if this is not correct"
-                )
-                response.success = True
-            else:
-                self.get_logger().error(f"error encountered when getting all marker")
-                response.success = False
-        else:
-            raise Exception("get all charuco rosservice future not returning")
-        return response
-
-    def run_packing_algo_cb(self, request, response):
-        self.get_logger().info("Got request to run bin packing algo")
-        for charuco_marker_id in self.all_charuco_markers:
-            item_config = self.item_database.get(str(charuco_marker_id), None)
-            if item_config:
-                self.get_logger().info(f"item with marker id {charuco_marker_id} found in database")
-                ic(item_config)
-                set_item_req = SetItem.Request()
-                set_item_req.item_id = str(charuco_marker_id)
-                set_item_req.item.name = f"Arcuco id {str(charuco_marker_id)}"
-                set_item_req.item.length = item_config["dimension"]["length"]
-                set_item_req.item.width = item_config["dimension"]["width"]
-                set_item_req.item.height = item_config["dimension"]["height"]
-                set_item_req.item.color = item_config["color"]
-                set_item_res = self.set_item_srv.call(set_item_req)
-                if set_item_res is not None:
+        if get_all_charuco_res.success:
+            self.all_charuco_markers = get_all_charuco_res.charuco_markers
+            self.get_logger().info(
+                f"All charuco detected: {self.all_charuco_markers}, sending to bin packer for packing"
+            )
+            for charuco_marker_id in self.all_charuco_markers:
+                item_config = self.item_database.get(str(charuco_marker_id), None)
+                if item_config:
+                    self.get_logger().info(f"item with marker id {charuco_marker_id} found in database")
+                    ic(item_config)
+                    set_item_req = SetItem.Request()
+                    set_item_req.item_id = str(charuco_marker_id)
+                    set_item_req.item.name = f"Arcuco id {str(charuco_marker_id)}"
+                    set_item_req.item.length = item_config["dimension"]["length"]
+                    set_item_req.item.width = item_config["dimension"]["width"]
+                    set_item_req.item.height = item_config["dimension"]["height"]
+                    set_item_req.item.color = item_config["color"]
+                    set_item_res = self.set_item_srv.call(set_item_req)
                     if not set_item_res.success:
                         self.get_logger().error(f"error encountered when setting item in bin packer")
                         response.success = False
+                        return response
                 else:
-                    raise Exception("set item rosservice future not returning")
-            else:
-                self.get_logger().info(
-                    f"item with marker id {charuco_marker_id} not found in database, will skip processing it"
-                )
-        # all item added, calling pack service
-        self.get_logger().info(f"All items have been sent to bin packer, calling pack service")
-        pack_req = Trigger.Request()
-        pack_res = self.pack_srv.call(pack_req)
-        if pack_res is not None:
+                    self.get_logger().info(
+                        f"item with marker id {charuco_marker_id} not found in database, will skip processing it"
+                    )
+            # all item added, calling pack service
+            self.get_logger().info(f"All items have been sent to bin packer, calling pack service")
+            pack_req = Trigger.Request()
+            pack_res = self.pack_srv.call(pack_req)
             if pack_res.success:
                 self.get_logger().info("Done packing items in bin")
                 response.success = True
             else:
                 self.get_logger().error(f"error encountered when request to pack item in bin packer")
                 response.success = False
+            return response
         else:
-            raise Exception("set item rosservice future not returning")
-        return response
+            self.get_logger().error(f"error encountered when getting all marker")
+            response.success = False
+            return response
 
     def get_next_coordinate_cb(self, request, response):
         # only call next get next pose if there isnt residue current item to transfer
@@ -286,7 +283,7 @@ class MasterController(Node):
             if get_next_placing_pose_res is not None:
                 if get_next_placing_pose_res.output == GetNextPose.Response.COMPLETED:
                     self.get_logger().info(f"All items has been packed to box, the flow has completed!")
-                    response.success = True
+                    response.outcome = GetNextCoordinate.Response.COMPLETED
                     return response
 
                 elif get_next_placing_pose_res.output == GetNextPose.Response.SUCCESS:
@@ -299,7 +296,11 @@ class MasterController(Node):
                         "flipping_mechanism": False,
                         "offset_before_flip": False,
                         "offset_after_flip": False,
-                        "dimension": {"length": get_next_placing_pose_res.shape.length, "width": get_next_placing_pose_res.shape.width, "height": get_next_placing_pose_res.shape.height},
+                        "dimension": {
+                            "length": get_next_placing_pose_res.shape.length,
+                            "width": get_next_placing_pose_res.shape.width,
+                            "height": get_next_placing_pose_res.shape.height,
+                        },
                     }
         else:
             self.get_logger().warn("Item transferred halfway detected")
@@ -313,7 +314,9 @@ class MasterController(Node):
         get_charuco_pose_req.charuco_id = int(self.current_item_to_transfer["item_id"])
         get_charuco_pose_res = self.get_charuco_pose_srv.call(get_charuco_pose_req)
         if get_charuco_pose_res.success:
-            charuco_in_world = self.transform_cam_charuco_to_world("camera_color_optical_frame", get_charuco_pose_res.pose)
+            charuco_in_world = self.transform_cam_charuco_to_world(
+                "camera_color_optical_frame", get_charuco_pose_res.pose
+            )
 
             # rotate about x by 180deg and z by 90deg to convert from arcuo frame to gripper frame
             # R_x_180 = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
@@ -326,25 +329,25 @@ class MasterController(Node):
             if self.current_item_to_transfer["rotation_config"] == "WLH":
                 # default case, transform only the top down z
                 pass
-            
+
             elif self.current_item_to_transfer["rotation_config"] == "LWH":
                 # transform top down z + 90deg offset
                 self.current_item_to_transfer["offset_before_flip"] = True
-            
+
             elif self.current_item_to_transfer["rotation_config"] == "WHL":
                 # grip with WLH, then transder to flipping mechanism
                 self.current_item_to_transfer["flipping_mechanism"] = True
-                
+
             elif self.current_item_to_transfer["rotation_config"] == "HWL":
                 # grip with WLH, then transder to flipping mechanism, offset after flip
                 self.current_item_to_transfer["flipping_mechanism"] = True
                 self.current_item_to_transfer["offset_after_flip"] = True
-                
+
             elif self.current_item_to_transfer["rotation_config"] == "LHW":
                 # grip with LWH, then transder to flipping mechanism
                 self.current_item_to_transfer["offset_before_flip"] = True
                 self.current_item_to_transfer["flipping_mechanism"] = True
-                
+
             elif self.current_item_to_transfer["rotation_config"] == "HLW":
                 # grip with LWH, then transder to flipping mechanism, offset after flip
                 self.current_item_to_transfer["offset_before_flip"] = True
@@ -353,10 +356,22 @@ class MasterController(Node):
 
             self.get_logger().info("successful populating next item configs")
             ic(self.current_item_to_transfer)
-            response.success = True
+            response.outcome = GetNextCoordinate.Response.SUCCESS
         else:
             self.get_logger().error("Error getting 3D data from pixel coordinate")
-            response.success = False
+            response.outcome = GetNextCoordinate.Response.ERROR
+        return response
+
+    def reset_bin_packer_cb(self, request, response):
+        req = Trigger.Request()
+        reset_res = self.reset_srv.call(req)
+        if reset_res.success:
+            self.get_logger().info("successfully reset the bin packer")
+            self.current_item_to_transfer = None
+            response.success = True
+            return response
+        self.get_logger().error("Error when resetting bin packer")
+        response.success = False
         return response
 
     def transfer_item_cb(self, request, response):
@@ -404,21 +419,24 @@ class MasterController(Node):
             self.get_logger().error("Flipping Mechanism is needed, transferring here instead")
             self.publish_tf("world", "fm_placing_pose_ori", self.flipping_mechanism_pose)
             offset_placing_pose = copy.deepcopy(self.flipping_mechanism_pose)
-            offset_placing_pose.position.z += (self.current_item_to_transfer["dimension"]["height"])
+            offset_placing_pose.position.z += self.current_item_to_transfer["dimension"]["height"]
             if self.current_item_to_transfer["offset_before_flip"]:
-                offset_placing_pose.position.y += (0.5 * self.current_item_to_transfer["dimension"]["width"] + 0.01)
+                offset_placing_pose.position.y += 0.5 * self.current_item_to_transfer["dimension"]["width"] + 0.01
             else:
-                offset_placing_pose.position.y += (0.5 * self.current_item_to_transfer["dimension"]["length"] + 0.01)
+                offset_placing_pose.position.y += 0.5 * self.current_item_to_transfer["dimension"]["length"] + 0.01
             self.publish_tf("world", "fm_placing_pose", offset_placing_pose)
             if not self.place(offset_placing_pose, is_fm=True):
                 self.housekeeping()
                 response.outcome = TransferItem.Response.ERROR
                 return response
             self.get_logger().error("Item transferred successfully, calling for flip")
-            input("Press Enter to continue...")
-            requests.get(self.flipping_mechanism_endpoint)
+            if not MOCK_ROBOT:
+                requests.get(self.flipping_mechanism_endpoint)
+            else:
+                self.get_logger().warn("MOCK_ROBOT is True, skipping flipping mechanism")
             # need to feedback to caller that this item is transferred to FM, need to pick from there later
             response.outcome = TransferItem.Response.FLIPPING_MECHANISM
+            input("enter to continue")
             return response
 
         else:
@@ -429,10 +447,12 @@ class MasterController(Node):
                 return response
 
             self.get_logger().error("Item transferred successfully!")
+            self.set_item_transferred()
             self.current_item_to_transfer = None
             response.outcome = TransferItem.Response.BOX
+            input("enter to continue")
             return response
-        
+
     def transfer_from_flipping_mechanism_cb(self, request, response):
         self.get_logger().info("Got request to transfer item from flipping mechanism")
         if self.current_item_to_transfer == None:
@@ -440,16 +460,23 @@ class MasterController(Node):
             response.success = False
             return response
         req = GetFMBoxDetail.Request()
-        get_fm_box_detail_res = self.get_fm_box_detail_srv.call(req)
-        self.get_logger().info("Successfully get flipping mechanism box detail")
-        if get_fm_box_detail_res.success:
-            fm_picking_pose = self.transform_cam_charuco_to_world("camera_depth_optical_frame", get_fm_box_detail_res.box.pose)
-            yaw = get_fm_box_detail_res.box.yaw
+        get_fm_item_detail_res = self.get_fm_item_detail_srv.call(req)
+        self.get_logger().info("Successfully get flipping mechanism item detail")
+        if get_fm_item_detail_res.success:
+            fm_picking_pose = self.transform_cam_charuco_to_world(
+                "camera_depth_optical_frame", get_fm_item_detail_res.box.pose
+            )
+            yaw = get_fm_item_detail_res.box.yaw
             ic(yaw)
             if self.current_item_to_transfer["rotation_config"] == "WHL":
-                if self.current_item_to_transfer["dimension"]["width"] > self.current_item_to_transfer["dimension"]["height"]:
+                if (
+                    self.current_item_to_transfer["dimension"]["width"]
+                    > self.current_item_to_transfer["dimension"]["height"]
+                ):
                     # detected x axis is W, align gripper x to detected x
-                    self.get_logger().info("Rotation configuration WHL, Detected x axis is W, align gripper x to detected x")
+                    self.get_logger().info(
+                        "Rotation configuration WHL, Detected x axis is W, align gripper x to detected x"
+                    )
                     if yaw < 0:
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
@@ -463,11 +490,16 @@ class MasterController(Node):
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
                         fm_picking_pose = self.transform_pose(fm_picking_pose, R_z_180)
-                    
+
             elif self.current_item_to_transfer["rotation_config"] == "HWL":
-                if self.current_item_to_transfer["dimension"]["height"] > self.current_item_to_transfer["dimension"]["width"]:
+                if (
+                    self.current_item_to_transfer["dimension"]["height"]
+                    > self.current_item_to_transfer["dimension"]["width"]
+                ):
                     # detected x axis is H, align gripper x to detected x
-                    self.get_logger().info("Rotation configuration HWL, Detected x axis is H, align gripper x to detected x")
+                    self.get_logger().info(
+                        "Rotation configuration HWL, Detected x axis is H, align gripper x to detected x"
+                    )
                     if yaw < 0:
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
@@ -481,11 +513,16 @@ class MasterController(Node):
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
                         fm_picking_pose = self.transform_pose(fm_picking_pose, R_z_180)
-                        
+
             elif self.current_item_to_transfer["rotation_config"] == "LHW":
-                if self.current_item_to_transfer["dimension"]["length"] > self.current_item_to_transfer["dimension"]["height"]:
+                if (
+                    self.current_item_to_transfer["dimension"]["length"]
+                    > self.current_item_to_transfer["dimension"]["height"]
+                ):
                     # detected x axis is H, align gripper x to detected x
-                    self.get_logger().info("Rotation configuration LHW, Detected x axis is L, align gripper x to detected x")
+                    self.get_logger().info(
+                        "Rotation configuration LHW, Detected x axis is L, align gripper x to detected x"
+                    )
                     if yaw < 0:
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
@@ -499,11 +536,16 @@ class MasterController(Node):
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
                         fm_picking_pose = self.transform_pose(fm_picking_pose, R_z_180)
-                        
+
             elif self.current_item_to_transfer["rotation_config"] == "HLW":
-                if self.current_item_to_transfer["dimension"]["height"] > self.current_item_to_transfer["dimension"]["length"]:
+                if (
+                    self.current_item_to_transfer["dimension"]["height"]
+                    > self.current_item_to_transfer["dimension"]["length"]
+                ):
                     # detected x axis is H, align gripper x to detected x
-                    self.get_logger().info("Rotation configuration HLW, Detected x axis is H, align gripper x to detected x")
+                    self.get_logger().info(
+                        "Rotation configuration HLW, Detected x axis is H, align gripper x to detected x"
+                    )
                     if yaw < 0:
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
@@ -517,13 +559,13 @@ class MasterController(Node):
                         self.get_logger().info("Rotation correction is neeeded")
                         R_z_180 = np.array([[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
                         fm_picking_pose = self.transform_pose(fm_picking_pose, R_z_180)
-            
+
             self.publish_tf("world", "picking_pose", fm_picking_pose)
             if not self.pick(fm_picking_pose, is_fm=True):
                 self.housekeeping()
                 response.success = False
                 return response
-            
+
             self.publish_tf("world", "placing_pose", self.current_item_to_transfer["placing_pose"])
             if not self.place(copy.deepcopy(self.current_item_to_transfer["placing_pose"])):
                 self.housekeeping()
@@ -531,10 +573,12 @@ class MasterController(Node):
                 return response
 
             self.get_logger().info("Item transferred from FM successfully!")
+            self.set_item_transferred()
             self.current_item_to_transfer = None
             response.success = True
+            input("enter to continue")
             return response
-            
+
         else:
             self.get_logger().error("Error getting flipping mechanism box detail")
             response.success = False
@@ -544,6 +588,17 @@ class MasterController(Node):
         self.get_logger().error("Reqest to clear halfway item")
         self.current_item_to_transfer = None
         return response
+
+    def set_item_transferred(self):
+        req = StringTrigger.Request()
+        req.data = self.current_item_to_transfer["item_id"]
+        res = self.set_item_transferred_srv.call(req)
+        if res.success:
+            self.get_logger().info(f"Item {self.current_item_to_transfer['item_id']} has been marked as transferred")
+        else:
+            self.get_logger().error(
+                f"Error when marking item {self.current_item_to_transfer['item_id']} as transferred"
+            )
 
     def housekeeping(self):
         pass
@@ -649,11 +704,20 @@ class MasterController(Node):
         return True
 
     def place(self, pose, is_fm=False):
-        # go to 5cm above placing coor
+        if not is_fm:
+            # go to box homing
+            move_res = self.box_home_robot_srv.call(Trigger.Request())
+            if not move_res.success:
+                self.get_logger().warn("Box Homing failed")
+                return False
+        # go to 3cm above placing coor
         move_l_req = MoveL.Request()
         move_l_req.mode = MoveL.Request.QUATERNION
         move_l_req.quaternion_pose = pose
-        move_l_req.quaternion_pose.position.z += 0.03
+        if not is_fm:
+            move_l_req.quaternion_pose.position.z += 0.13
+        else:    
+            move_l_req.quaternion_pose.position.z += 0.03
         move_res = self.move_l_srv.call(move_l_req)
         if not move_res.success:
             self.get_logger().warn("Move L failed")
@@ -661,18 +725,14 @@ class MasterController(Node):
 
         # contact with item
         contact_req = Trigger.Request()
-        contact_res = self.contact_srv.call(contact_req)
+        contact_res = None
+        if not is_fm:
+            contact_res = self.box_contact_srv.call(contact_req)
+        else:
+            contact_res = self.contact_srv.call(contact_req)
         if not contact_res.success:
             self.get_logger().warn("Contact failed")
             return False
-        # # z down 5cm
-        # move_relative_req = MoveRelative.Request()
-        # move_relative_req.direction = "z"
-        # move_relative_req.magnitude = -0.095
-        # move_res = self.move_relative_srv.call(move_relative_req)
-        # if not move_res.success:
-        #     self.get_logger().warn("Move Relative failed")
-        #     return False
 
         # deactivate gripper
         self.get_logger().info("Deactivating Gripper")

@@ -20,7 +20,7 @@ from tf_transformations import euler_from_matrix, euler_matrix
 
 ic.configureOutput(includeContext=True)
 
-TOTAL_CHARUCO = 3  # id 0, 1, 2
+TOTAL_CHARUCO = 7  # id 0, 1, 2
 FORCE_RP_ZERO = True
 
 
@@ -308,7 +308,7 @@ class ChArUcoReader(Node):
                 return res
             else:
                 self.get_logger().warn("No marker is detected")
-                res.success = False
+                res.success = True
                 return res
 
         except Exception as a:

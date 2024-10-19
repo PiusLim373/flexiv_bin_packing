@@ -27,6 +27,9 @@ setup(
             'stepwise_master_controller_node = master_controller.stepwise_master_controller_node:main',
             'stepwise_master_controller_charuco_node = master_controller.stepwise_master_controller_charuco_node:main',
             'stepwise_master_controller_pcl_node = master_controller.stepwise_master_controller_pcl_node:main',
+            'tree_debug = master_controller.tree_debug:main',
+            'test_bin_packer_fixed_item = master_controller.test_bin_packer_fixed_item:main',
+            'bin_packer_smach = master_controller.bin_packer_smach:main',
         ],
     },
 )

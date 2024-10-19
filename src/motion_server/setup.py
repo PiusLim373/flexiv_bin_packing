@@ -27,7 +27,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'motion_server_node = motion_server.motion_server_node:main'
+            'motion_server_node = motion_server.motion_server_node:main',
+            'test_joint_publisher = motion_server.test_joint_publisher:main'
         ],
     },
 )

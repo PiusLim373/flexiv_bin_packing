@@ -21,7 +21,6 @@ setup(
     entry_points={
         'console_scripts': [
             'bin_packer_node = bin_packer.bin_packer_node:main',
-            'test = bin_packer.matplotlib_ros:main'
         ],
     },
 )

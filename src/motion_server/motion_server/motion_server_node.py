@@ -4,6 +4,7 @@ from ament_index_python import get_package_share_directory
 from bin_packing_msgs.srv import *
 from bin_packing_msgs.msg import *
 from std_srvs.srv import Trigger, SetBool
+from sensor_msgs.msg import JointState
 
 package_share_directory = get_package_share_directory("motion_server")
 sys.path.insert(0, package_share_directory)
@@ -32,17 +33,21 @@ class MotionServer(Node):
             self.enable_robot()
 
         self.br = tf2_ros.TransformBroadcaster(self)
+        self.joint_state_pub = self.create_publisher(JointState, "/joint_states", 10)
         self.srv = self.create_service(MoveJ, "move_j", self.move_j_cb)
         self.srv = self.create_service(MoveL, "move_l", self.move_l_cb)
         self.srv = self.create_service(Trigger, "home", self.home_cb)
         self.srv = self.create_service(Trigger, "fm_home", self.fm_home_cb)
+        self.srv = self.create_service(Trigger, "box_home", self.box_home_cb)
         self.srv = self.create_service(MoveRelative, "move_relative", self.move_relative_cb)
         self.srv = self.create_service(Trigger, "contact", self.contact_cb)
+        self.srv = self.create_service(Trigger, "box_contact", self.box_contact_cb)
         self.srv = self.create_service(SetBool, "gripper_control", self.gripper_control_cb)
         if not MOCK_ROBOT:
             self.robot.executePrimitive("ZeroFTSensor()")
             time.sleep(0.5)
-            self.robot.executePrimitive("MoveJ(target=-1.05 -13.19 2.11 85.09 -0.52 8.1 1.3)")
+            # self.robot.executePrimitive("MoveJ(target=-1.05 -13.19 2.11 85.09 -0.52 8.1 1.3)")
+            self.robot.executePrimitive("MoveJ(target=-0.51 -13.65 1.61 69.56 -0.5 -6.96 1.21)")
             self.create_timer(0.01, self.timer_callback)
 
     # Robot internal functions
@@ -122,33 +127,41 @@ class MotionServer(Node):
     # timer callback
     def timer_callback(self):
         self.robot.getRobotStates(self.robot_states)
-        tcp_pose = self.robot_states.tcpPose
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = "world"
-        t.child_frame_id = "tcp"
-        t.transform.translation.x = tcp_pose[0]
-        t.transform.translation.y = tcp_pose[1]
-        t.transform.translation.z = tcp_pose[2]
-        t.transform.rotation.w = tcp_pose[3]
-        t.transform.rotation.x = tcp_pose[4]
-        t.transform.rotation.y = tcp_pose[5]
-        t.transform.rotation.z = tcp_pose[6]
-        self.br.sendTransform(t)
+        # tcp_pose = self.robot_states.tcpPose
+        # t = TransformStamped()
+        # t.header.stamp = self.get_clock().now().to_msg()
+        # t.header.frame_id = "world"
+        # t.child_frame_id = "tcp"
+        # t.transform.translation.x = tcp_pose[0]
+        # t.transform.translation.y = tcp_pose[1]
+        # t.transform.translation.z = tcp_pose[2]
+        # t.transform.rotation.w = tcp_pose[3]
+        # t.transform.rotation.x = tcp_pose[4]
+        # t.transform.rotation.y = tcp_pose[5]
+        # t.transform.rotation.z = tcp_pose[6]
+        # self.br.sendTransform(t)
 
-        flange_pose = self.robot_states.flangePose
-        t = TransformStamped()
-        t.header.stamp = self.get_clock().now().to_msg()
-        t.header.frame_id = "world"
-        t.child_frame_id = "flange"
-        t.transform.translation.x = flange_pose[0]
-        t.transform.translation.y = flange_pose[1]
-        t.transform.translation.z = flange_pose[2]
-        t.transform.rotation.w = flange_pose[3]
-        t.transform.rotation.x = flange_pose[4]
-        t.transform.rotation.y = flange_pose[5]
-        t.transform.rotation.z = flange_pose[6]
-        self.br.sendTransform(t)
+        # flange_pose = self.robot_states.flangePose
+        # t = TransformStamped()
+        # t.header.stamp = self.get_clock().now().to_msg()
+        # t.header.frame_id = "world"
+        # t.child_frame_id = "flange"
+        # t.transform.translation.x = flange_pose[0]
+        # t.transform.translation.y = flange_pose[1]
+        # t.transform.translation.z = flange_pose[2]
+        # t.transform.rotation.w = flange_pose[3]
+        # t.transform.rotation.x = flange_pose[4]
+        # t.transform.rotation.y = flange_pose[5]
+        # t.transform.rotation.z = flange_pose[6]
+        # self.br.sendTransform(t)
+        
+        robot_joints = self.robot_states.q
+        joint_states_data = JointState()
+        joint_states_data.header.stamp = self.get_clock().now().to_msg()
+        joint_states_data.name = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
+        for x in robot_joints:
+            joint_states_data.position.append(float(x))
+        self.joint_state_pub.publish(joint_states_data)
 
     # service callbacks
     def move_j_cb(self, request, response):
@@ -216,7 +229,8 @@ class MotionServer(Node):
 
         # robot.executePrimitive("MoveJ(target=30 -45 0 90 0 40 30)")
         # self.robot.executePrimitive("Home()")
-        self.robot.executePrimitive("MoveJ(target=-1.05 -13.19 2.11 85.09 -0.52 8.1 1.3)")
+        # self.robot.executePrimitive("MoveJ(target=-1.05 -13.19 2.11 85.09 -0.52 8.1 1.3)") # 0.4m
+        self.robot.executePrimitive("MoveJ(target=-0.51 -13.65 1.61 69.56 -0.5 -6.96 1.21)")
 
         while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
             if self.robot.isFault():
@@ -235,6 +249,24 @@ class MotionServer(Node):
             return response
 
         self.robot.executePrimitive("MoveJ(target=16.86 0.05 44.38 100.2 0.39 10.14 61.41)")
+
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(1)
+        response.success = True
+        return response
+
+    def box_home_cb(self, request, response):
+        self.get_logger().info(f"Incoming box homing request")
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+
+        self.robot.executePrimitive("MoveJ(target=-9.39 4.48 -1.81 104.88 -0.03 10.23 -10.95)")
 
         while self.parse_pt_states(self.robot.getPrimitiveStates(), "reachedTarget") != "1":
             if self.robot.isFault():
@@ -301,6 +333,29 @@ class MotionServer(Node):
         response.success = True
         return response
 
+    def box_contact_cb(self, request, response):
+        self.get_logger().info(f"Incoming contact request")
+        if MOCK_ROBOT:
+            self.get_logger().warn(f"This is a robot mock, will return True")
+            response.success = True
+            return response
+        self.get_logger().info(f"Zeroing FT Sensor")
+
+        self.robot.executePrimitive("ZeroFTSensor()")
+        time.sleep(1.0)
+        self.get_logger().info(f"Contacting in progress")
+        # self.robot.executePrimitive("Contact(contactDir=-1 -1 -1, maxContactForce=10.0)")
+        self.robot.executePrimitive("Contact(maxContactForce=10.0)")
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "primitiveName") == "Contact":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(0.5)
+        self.get_logger().info("Contact ended succesfully")
+        response.success = True
+        return response
+    
     def gripper_control_cb(self, request, response):
         self.get_logger().info(f"Incoming gripper control request: {request.data}")
         if MOCK_ROBOT:
