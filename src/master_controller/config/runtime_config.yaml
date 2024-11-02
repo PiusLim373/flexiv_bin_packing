@@ -1,7 +1,17 @@
 master_controller:
   ros__parameters:
-    box_config_string: "{'name': '20cm Box', 'dimension': {'length': 0.2, 'width': 0.2, 'height': 0.2}, 'pose':{'position': {'x': 0.25, 'y': -0.4, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"
+    box_config_string: "{'name': '20cm Box', 'dimension': {'length': 0.21, 'width': 0.297, 'height': 0.125}, 'pose':{'position': {'x': 0.26, 'y': -0.44, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"
+    # box_config_string: "{'name': '20cm Box', 'dimension': {'length': 0.26, 'width': 0.175, 'height': 0.1}, 'pose':{'position': {'x': 0.25, 'y': -0.4, 'z': 0.0}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}}"
     # item_database_string: "{'0': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'yellow'},'1': {'dimension': {'length': 0.157, 'width': 0.0863, 'height': 0.042}, 'color': 'blue'}, '2': {'dimension': {'length': 0.195, 'width': 0.1, 'height': 0.055}, 'color': 'black'}}"
-    item_database_string: "{'0': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'yellow'}, '1': {'dimension': {'length': 0.157, 'width': 0.0863, 'height': 0.042}, 'color': 'blue'}, '2': {'dimension': {'length': 0.195, 'width': 0.1, 'height': 0.055}, 'color': 'black'}, '3': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.05}, 'color': 'red'}, '4': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.09}, 'color': 'green'}, '5': {'dimension': {'length': 0.155, 'width': 0.105, 'height': 0.06}, 'color': 'orange'}, '6': {'dimension': {'length': 0.175, 'width': 0.150, 'height': 0.075}, 'color': 'purple'}}"
+    item_database_string: > 
+      {
+        '0': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.053}, 'color': 'yellow'}, 
+        '1': {'dimension': {'length': 0.157, 'width': 0.087, 'height': 0.042}, 'color': 'blue'}, 
+        '2': {'dimension': {'length': 0.195, 'width': 0.102, 'height': 0.055}, 'color': 'black'}, 
+        '3': {'dimension': {'length': 0.145, 'width': 0.092, 'height': 0.053}, 'color': 'red'}, 
+        '4': {'dimension': {'length': 0.192, 'width': 0.133, 'height': 0.093}, 'color': 'green'}, 
+        '5': {'dimension': {'length': 0.153, 'width': 0.103, 'height': 0.060}, 'color': 'orange'}, 
+        '6': {'dimension': {'length': 0.175, 'width': 0.147, 'height': 0.073}, 'color': 'purple'}
+      }
     flipping_mechanism_pose_string: "{'position': {'x': 0.3, 'y': 0.365, 'z': 0.08}, 'orientation': {'x': 0.0, 'y': -1.0, 'z': 0.0, 'w': 0.0}}"
     flipping_mechanism_endpoint: "http://192.168.79.173/flip"

@@ -20,6 +20,7 @@ from icecream import ic
 import copy
 import requests
 import random
+from visualization_msgs.msg import Marker
 
 ic.configureOutput(includeContext=True)
 
@@ -81,7 +82,9 @@ class MasterController(Node):
             MoveRelative, "move_relative", callback_group=MutuallyExclusiveCallbackGroup()
         )
         self.contact_srv = self.create_client(Trigger, "contact", callback_group=MutuallyExclusiveCallbackGroup())
-        self.box_contact_srv = self.create_client(Trigger, "box_contact", callback_group=MutuallyExclusiveCallbackGroup())
+        self.box_contact_srv = self.create_client(
+            Trigger, "box_contact", callback_group=MutuallyExclusiveCallbackGroup()
+        )
         self.gripper_control_srv = self.create_client(
             SetBool, "gripper_control", callback_group=MutuallyExclusiveCallbackGroup()
         )
@@ -95,7 +98,9 @@ class MasterController(Node):
         self.pack_srv = self.create_client(Trigger, "pack", callback_group=MutuallyExclusiveCallbackGroup())
         self.hard_reset_srv = self.create_client(Trigger, "hard_reset", callback_group=MutuallyExclusiveCallbackGroup())
         self.reset_srv = self.create_client(Trigger, "reset", callback_group=MutuallyExclusiveCallbackGroup())
-        self.set_item_transferred_srv = self.create_client(StringTrigger, "set_item_transferred", callback_group=MutuallyExclusiveCallbackGroup())
+        self.set_item_transferred_srv = self.create_client(
+            StringTrigger, "set_item_transferred", callback_group=MutuallyExclusiveCallbackGroup()
+        )
         self.get_next_placing_pose_srv = self.create_client(
             GetNextPose, "get_next_placing_pose", callback_group=MutuallyExclusiveCallbackGroup()
         )
@@ -125,6 +130,9 @@ class MasterController(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.br = tf2_ros.TransformBroadcaster(self)
 
+        # rviz visualizer
+        self.rviz_visualizer = self.create_publisher(Marker, "rviz_visualizer", 10)
+        self.marker_added = []
         # main function to run below
         self.hard_reset_bin_packer()
         self.setup_box()
@@ -217,6 +225,57 @@ class MasterController(Node):
                 self.get_logger().error(f"error encountered when setting box in bin packer")
         else:
             raise Exception("set box rosservice future not returning")
+        
+    def remove_all_markers(self):
+        for id in self.marker_added:
+            marker = Marker()
+            marker.header.frame_id = "camera_depth_optical_frame"
+            marker.header.stamp = self.get_clock().now().to_msg()
+            marker.ns = "cube"
+            marker.id = id
+            marker.type = Marker.CUBE
+            marker.action = Marker.DELETE  # Action to delete the marker
+            self.rviz_visualizer.publish(marker)
+            self.get_logger().info(f"Item with id: {id} cleared.")
+        self.get_logger().info(f"All items cleared")
+        
+    def publish_marker(self, name, pose, length, width, height, rgba):
+        marker = Marker()
+        marker.header.frame_id = "camera_depth_optical_frame"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "cube"
+        marker.id = random.randint(0, 1000)
+        self.marker_added.append(marker.id)
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+
+        # Set the pose
+        marker.pose.position.x = pose.position.x
+        marker.pose.position.y = pose.position.y
+        marker.pose.position.z = pose.position.z
+        marker.pose.position.z += 0.5 * height
+        marker.pose.orientation = pose.orientation
+        # marker.pose.orientation.y = 0.0
+        # marker.pose.orientation.z = 0.0
+        # marker.pose.orientation.w = 1.0
+
+        # Set the dimensions of the box
+        marker.scale.x = length
+        marker.scale.y = width
+        marker.scale.z = height
+
+        # Set the color (RGBA)
+        marker.color.r = rgba[0]
+        marker.color.g = rgba[1]
+        marker.color.b = rgba[2]
+        marker.color.a = rgba[3]
+
+        # Optional: Set the lifetime (set to 0 for infinite lifetime)
+        marker.lifetime = rclpy.duration.Duration(seconds=100).to_msg()  # Infinite lifetime
+
+        # Publish the marker
+        self.rviz_visualizer.publish(marker)
+        self.get_logger().info("Box marker published.")
 
     def get_all_item_and_pack_cb(self, request, response):
         self.get_logger().info("Got request to get all item details")
@@ -226,6 +285,14 @@ class MasterController(Node):
             if get_all_item_detail_res.success:
                 self.get_logger().info(f"{len(get_all_item_detail_res.boxes)} items detected")
                 for item in get_all_item_detail_res.boxes:
+                    self.publish_marker(
+                        item.shape.name,
+                        item.pose,
+                        item.shape.length,
+                        item.shape.width,
+                        item.shape.height,
+                        (0.0, 0.0, 1.0, 0.4)
+                    )
                     ic(item)
                     set_item_req = SetItem.Request()
                     set_item_req.item_id = item.shape.name
@@ -365,7 +432,7 @@ class MasterController(Node):
             self.get_logger().error("Error getting 3D data from pixel coordinate")
             response.outcome = GetNextCoordinate.Response.ERROR
         return response
-    
+
     def reset_bin_packer_cb(self, request, response):
         req = Trigger.Request()
         reset_res = self.reset_srv.call(req)
@@ -373,11 +440,11 @@ class MasterController(Node):
             self.get_logger().info("successfully reset the bin packer")
             self.current_item_to_transfer = None
             response.success = True
-            return response 
+            return response
         self.get_logger().error("Error when resetting bin packer")
         response.success = False
-        return response 
-    
+        return response
+
     def transfer_item_cb(self, request, response):
         if self.current_item_to_transfer == None:
             self.get_logger().error("Invalid item to process")
@@ -601,8 +668,10 @@ class MasterController(Node):
         if res.success:
             self.get_logger().info(f"Item {self.current_item_to_transfer['item_id']} has been marked as transferred")
         else:
-            self.get_logger().error(f"Error when marking item {self.current_item_to_transfer['item_id']} as transferred")
-        
+            self.get_logger().error(
+                f"Error when marking item {self.current_item_to_transfer['item_id']} as transferred"
+            )
+
     def housekeeping(self):
         pass
 
@@ -719,7 +788,9 @@ class MasterController(Node):
         move_l_req.quaternion_pose = pose
         if not is_fm:
             move_l_req.quaternion_pose.position.z += 0.13
-        else:    
+            move_l_req.quaternion_pose.position.y += 0.01
+            move_l_req.quaternion_pose.position.x += 0.01
+        else:
             move_l_req.quaternion_pose.position.z += 0.03
         move_res = self.move_l_srv.call(move_l_req)
         if not move_res.success:

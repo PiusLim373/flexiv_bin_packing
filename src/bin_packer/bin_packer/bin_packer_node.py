@@ -330,7 +330,8 @@ class Packer:
             f"called pack consider_stability: {consider_stability}, consider_gravity:{consider_gravity}, enable_3d_rotation: {enable_3d_rotation}"
         )
         if enable_3d_rotation:
-            ROTATION = ["LWH", "WLH", "WHL", "LHW", "HWL", "HLW"]
+            # ROTATION = ["LWH", "WLH", "WHL", "LHW", "HWL", "HLW"]
+            ROTATION = ["WLH", "LWH", "WHL", "LHW", "HWL", "HLW"]
         else:
             ROTATION = ["LWH", "WLH"]
 

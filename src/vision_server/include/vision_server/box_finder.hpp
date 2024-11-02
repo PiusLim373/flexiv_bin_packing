@@ -60,7 +60,7 @@ public:
     };
 
 private:
-    double max_pass_filter_global, voxel_grid_size_global, plane_distance_threshold_global;
+    double max_pass_filter_global, min_y_pass_filter_global, max_y_pass_filter_global, voxel_grid_size_global, plane_distance_threshold_global;
     int min_cluster_size_global;
     int averaging_tries, min_averaging_tries;
 
@@ -80,5 +80,5 @@ private:
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud;
     void publishProcessedPointcloud(std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> data);
-    std::vector<pcl::PointIndices> get_clusters(double max_pass_filter, double voxel_grid_size, double plane_distance_threshold, int min_cluster_size, bool enable_plane_segmentation, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_without_plane);
+    std::vector<pcl::PointIndices> get_clusters(double max_pass_filter, double min_y_pass_filter_global, double max_y_pass_filter_global, double voxel_grid_size, double plane_distance_threshold, int min_cluster_size, bool enable_plane_segmentation, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_without_plane);
 };

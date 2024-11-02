@@ -339,8 +339,8 @@ class MotionServer(Node):
             self.get_logger().warn(f"This is a robot mock, will return True")
             response.success = True
             return response
+        
         self.get_logger().info(f"Zeroing FT Sensor")
-
         self.robot.executePrimitive("ZeroFTSensor()")
         time.sleep(1.0)
         self.get_logger().info(f"Contacting in progress")
@@ -352,7 +352,20 @@ class MotionServer(Node):
                 response.success = False
                 return response
             time.sleep(0.5)
-        self.get_logger().info("Contact ended succesfully")
+        self.get_logger().info("Z Contact ended succesfully, running x and y")
+        
+        self.get_logger().info(f"Zeroing FT Sensor")
+        self.robot.executePrimitive("ZeroFTSensor()")
+        time.sleep(1.0)
+        self.get_logger().info(f"Contacting in progress")
+        self.robot.executePrimitive("Contact(contactDir=-1 -1 0, maxContactForce=5.0)")
+        while self.parse_pt_states(self.robot.getPrimitiveStates(), "primitiveName") == "Contact":
+            if self.robot.isFault():
+                self.get_logger().error("Robot is at fault state")
+                response.success = False
+                return response
+            time.sleep(0.5)
+        self.get_logger().info("All Contact ended succesfully")
         response.success = True
         return response
     

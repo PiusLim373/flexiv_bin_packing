@@ -381,7 +381,8 @@ class ChArUcoReader(Node):
                                 quad = self.rotation_matrix_to_quaternion(rmat)
                             else:
                                 quad = self.rotation_matrix_to_quaternion(rotation_matrix)
-                            trans = [result[0] / 1000.0, result[1] / 1000.0, result[2] / 1000.0]
+                            # trans = [result[0] / 1000.0, result[1] / 1000.0, result[2] / 1000.0]
+                            trans = [tvec[0][0], tvec[1][0], tvec[2][0]]
 
                             position_accumulator += trans
                             quaternion_accumulator += quad
@@ -483,6 +484,8 @@ class ChArUcoReader(Node):
                         rotation_matrix, _ = cv2.Rodrigues(rvec)
                         quad = self.rotation_matrix_to_quaternion(rotation_matrix)
                         trans = [result[0] / 1000.0, result[1] / 1000.0, result[2] / 1000.0]
+                        trans = [tvec[0][0], tvec[1][0], tvec[2][0]]
+
                         self.publish_transform(trans, quad, f"Charuco {req.charuco_id}_intrinsic")
                         res.pose.position.x = trans[0]
                         res.pose.position.y = trans[1]

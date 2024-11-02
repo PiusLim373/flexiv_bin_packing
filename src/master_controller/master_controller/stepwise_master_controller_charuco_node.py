@@ -233,7 +233,10 @@ class MasterController(Node):
         get_all_charuco_req = GetAllChArUco.Request()
         get_all_charuco_res = self.get_all_charuco_srv.call(get_all_charuco_req)
         if get_all_charuco_res.success:
+        # if 1:
             self.all_charuco_markers = get_all_charuco_res.charuco_markers
+            # self.all_charuco_markers = [0, 1, 2, 3, 5, 6] # 6, 2, 5(simulate failure, will swap to 0), 3, 1,  
+            # self.all_charuco_markers = [0, 1, 3, 5, 6] # 6, 2, 5(simulate failure, will swap to 0), 3, 1,  
             self.get_logger().info(
                 f"All charuco detected: {self.all_charuco_markers}, sending to bin packer for packing"
             )

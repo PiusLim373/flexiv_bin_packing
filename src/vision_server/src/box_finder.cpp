@@ -2,6 +2,8 @@
 BoxFinder::BoxFinder() : Node("box_finder_node")
 {
   this->declare_parameter<double>("max_pass_filter_global", 0.7);
+  this->declare_parameter<double>("min_y_pass_filter_global", -2.0);
+  this->declare_parameter<double>("max_y_pass_filter_global", 0.3);
   this->declare_parameter<double>("voxel_grid_size_global", 0.01);
   this->declare_parameter<double>("plane_distance_threshold_global", 0.01);
   this->declare_parameter<int>("min_cluster_size_global", 150);
@@ -13,6 +15,8 @@ BoxFinder::BoxFinder() : Node("box_finder_node")
   this->declare_parameter<int>("min_averaging_tries", 5);
 
   this->get_parameter("max_pass_filter_global", max_pass_filter_global);
+  this->get_parameter("min_y_pass_filter_global", min_y_pass_filter_global);
+  this->get_parameter("max_y_pass_filter_global", max_y_pass_filter_global);
   this->get_parameter("voxel_grid_size_global", voxel_grid_size_global);
   this->get_parameter("plane_distance_threshold_global", plane_distance_threshold_global);
   this->get_parameter("min_cluster_size_global", min_cluster_size_global);
@@ -22,7 +26,6 @@ BoxFinder::BoxFinder() : Node("box_finder_node")
 
   this->get_parameter("averaging_tries", averaging_tries);
   this->get_parameter("min_averaging_tries", min_averaging_tries);
-  
 
   RCLCPP_INFO(this->get_logger(), "max_pass_filter_global: %f", max_pass_filter_global);
   RCLCPP_INFO(this->get_logger(), "voxel_grid_size_global: %f", voxel_grid_size_global);
@@ -70,7 +73,7 @@ void BoxFinder::getFMBoxDetailServiceCB(const std::shared_ptr<bin_packing_msgs::
   for (int i = 0; i < averaging_tries; i++)
   {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_without_plane(new pcl::PointCloud<pcl::PointXYZ>);
-    auto cluster_indices = get_clusters(max_pass_filter_fm, voxel_grid_size_fm, 0.0, min_cluster_size_fm, false, cloud_without_plane);
+    auto cluster_indices = get_clusters(max_pass_filter_fm, -10.0, 10.0, voxel_grid_size_fm, 0.0, min_cluster_size_fm, false, cloud_without_plane);
 
     // Iterate over each detected cluster (each box)
     if (cluster_indices.size() == 0)
@@ -217,7 +220,7 @@ void BoxFinder::getFMBoxDetailServiceCB(const std::shared_ptr<bin_packing_msgs::
   return;
 }
 
-std::vector<pcl::PointIndices> BoxFinder::get_clusters(double max_pass_filter, double voxel_grid_size, double plane_distance_threshold, int min_cluster_size, bool enable_plane_segmentation, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_without_plane)
+std::vector<pcl::PointIndices> BoxFinder::get_clusters(double max_pass_filter, double min_y_pass_filter, double max_y_pass_filter, double voxel_grid_size, double plane_distance_threshold, int min_cluster_size, bool enable_plane_segmentation, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud_without_plane)
 {
   auto camera_message = sensor_msgs::msg::PointCloud2();
   rclcpp::wait_for_message(camera_message, this->shared_from_this(), "/camera/camera/depth/color/points", std::chrono::seconds(10));
@@ -228,8 +231,16 @@ std::vector<pcl::PointIndices> BoxFinder::get_clusters(double max_pass_filter, d
   pass_filter.setInputCloud(pcl_cloud);
   pass_filter.setFilterFieldName("z");
   pass_filter.setFilterLimits(0.0, max_pass_filter); // Keep points where Z is between 0 and 70 cm
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pass_filtered_z(new pcl::PointCloud<pcl::PointXYZ>);
+  pass_filter.filter(*cloud_pass_filtered_z);
+
+  // Apply Y-axis filtering
+  pcl::PassThrough<pcl::PointXYZ> pass_filter_y;
+  pass_filter_y.setInputCloud(cloud_pass_filtered_z);
+  pass_filter_y.setFilterFieldName("y");
+  pass_filter_y.setFilterLimits(min_y_pass_filter, max_y_pass_filter); // Filter Y values between min_y_pass_filter and max_y_pass_filter
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_pass_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-  pass_filter.filter(*cloud_pass_filtered);
+  pass_filter_y.filter(*cloud_pass_filtered);
 
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
@@ -293,7 +304,7 @@ void BoxFinder::getAllBoxDetailServiceCB(const std::shared_ptr<bin_packing_msgs:
   for (int i = 0; i < averaging_tries; i++)
   {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_without_plane(new pcl::PointCloud<pcl::PointXYZ>);
-    auto cluster_indices = get_clusters(max_pass_filter_global, voxel_grid_size_global, plane_distance_threshold_global, min_cluster_size_global, true, cloud_without_plane);
+    auto cluster_indices = get_clusters(max_pass_filter_global, min_y_pass_filter_global, max_y_pass_filter_global, voxel_grid_size_global, plane_distance_threshold_global, min_cluster_size_global, true, cloud_without_plane);
     int cluster_id = 0;
 
     // Iterate over each detected cluster (each box)
