@@ -66,6 +66,11 @@ This will start the state machine and wait for the user to press the `enter` key
 
 ### 4. (Optional) Start the smach_viewer SMACH Visualization Tool 
 ```
+cd catkin_ws/src
+git clone git@github.com:nobleo/executive_smach_visualization.git
+
+# Build and source the workspace
+
 ros2 run smach_viewer smach_viewer_gui.py
 ```
 This will launch a window that display the current SMACH state. 
