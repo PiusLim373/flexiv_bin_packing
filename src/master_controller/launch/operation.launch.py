@@ -109,15 +109,15 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            vision_node,
-            camera_node,
-            motion_server_node,
-            camera_tf_handler_node,
+            motion_server_node,     # motion server + rizon 4s driver
+            camera_node,            # relasense camera driver
+            camera_tf_handler_node, # camera tf handler
+            vision_node,            # vision server - charuco
+            box_finder_node,        # vision server - pointcloud processor
             robot_state_publisher_node,
+            rviz_node,
             # world_tcp_node,
             # tcp_camera_node,
-            # rviz_node,
             # master_controller_node
-            # box_finder_node,
         ]
     )

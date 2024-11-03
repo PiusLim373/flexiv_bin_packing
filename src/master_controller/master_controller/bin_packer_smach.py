@@ -138,7 +138,7 @@ def main():
 
     # Create a SMACH state machine
     sm = smach.StateMachine(outcomes=["completed", "aborted"])
-    sis = IntrospectionServer('state_machine_introspection', sm, '/SM_ROOT2')
+    sis = IntrospectionServer('state_machine_introspection', sm, '/SM_ROOT')
     sis.start()
     
     # Open the container
