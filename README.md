@@ -77,3 +77,10 @@ This will launch a window that display the current SMACH state.
 
 :warning: The SMACH Path might not be selected correctly automatically, you might need to select manually from the dropdown.
 ![](docs/smach_viewer.png)
+
+## Video
+### 1. ChArUco Based Automation
+[![ChArUco Based Automation](https://img.youtube.com/vi/HBMK4lHVbe0/0.jpg)](https://www.youtube.com/watch?v=HBMK4lHVbe0&feature=youtu.be)
+
+### 2. PointCloud Based Automation
+[![PointCloud Based Automation](https://img.youtube.com/vi/84U-olEMms4/0.jpg)](https://www.youtube.com/watch?v=84U-olEMms4&feature=youtu.be)

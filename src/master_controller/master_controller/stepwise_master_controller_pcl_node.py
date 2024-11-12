@@ -30,7 +30,7 @@ MOCK_ROBOT = False
 class MasterController(Node):
 
     def __init__(self):
-        super().__init__("master_controller")
+        super().__init__("master_controller_node")
 
         self.declare_parameters(
             namespace="",
@@ -508,7 +508,7 @@ class MasterController(Node):
                 self.get_logger().warn("MOCK_ROBOT is True, skipping flipping mechanism")
             # need to feedback to caller that this item is transferred to FM, need to pick from there later
             response.outcome = TransferItem.Response.FLIPPING_MECHANISM
-            input("enter to continue")
+            # input("enter to continue")  # commented for full run, uncomment for demo / debugging
             return response
 
         else:
@@ -522,7 +522,7 @@ class MasterController(Node):
             self.set_item_transferred()
             self.current_item_to_transfer = None
             response.outcome = TransferItem.Response.BOX
-            input("enter to continue")
+            # input("enter to continue")  # commented for full run, uncomment for demo / debugging
             return response
 
     def transfer_from_flipping_mechanism_cb(self, request, response):
@@ -648,7 +648,7 @@ class MasterController(Node):
             self.set_item_transferred()
             self.current_item_to_transfer = None
             response.success = True
-            input("enter to continue")
+            # input("enter to continue")  # commented for full run, uncomment for demo / debugging
             return response
 
         else:
